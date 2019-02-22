@@ -1,1 +1,2 @@
-# CSCI599-SegFault
+# CSCI599 Final Course Project
+
