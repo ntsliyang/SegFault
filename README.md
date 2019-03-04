@@ -9,6 +9,9 @@
     - *why interesting*: The work that inspires our ideas
   * [Graph Neural Networks: A Review of Methods and Applications](https://arxiv.org/pdf/1812.08434.pdf)
 - Worth reading
+  * [Reinforcement Learning and Control as Probabilistic Inference: Tutorial and Review](https://arxiv.org/pdf/1805.00909.pdf)
+    - A framework that generalizes optimal control or reinforcement learning problems to the exact inference problem in probabilistic graphical models (PGMs). In this way, learning the optimal policy in RL is equivalent to inference on the special probabilistic graphical models. 
+    - *why interesting*: This is a potentially very influential paper since it unifies RL with PGMs. This may guide or even alter the design of our system in a fundamental way. 
   * [Woulda, Coulda, Shoulda: Counterfactually-Guided Policy Search](https://openreview.net/forum?id=BJG0voC9YQ)
     - Introduce Counterfactually-Guided Policy Search (CF-GPS) algorithm to leverage Structural Causal Models (SCM) for counterfactual evaluation of alternative policies.
     - *why interesting*: Using SCM to guide policy learning may be regarded as an extension of our work. Need to know in this paper whether the SCM is given as a prior knowledge of the environment or learned from the environment.
