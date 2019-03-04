@@ -7,14 +7,14 @@
     - **Extremely important!!** Seems very similar to what we are doing
   * [Causal Reasoning from Meta-reinforcement Learning](https://arxiv.org/pdf/1901.08162.pdf)
     - *why interesting*: The work that inspires our ideas
+  * [Woulda, Coulda, Shoulda: Counterfactually-Guided Policy Search](https://openreview.net/forum?id=BJG0voC9YQ)
+    - Introduce Counterfactually-Guided Policy Search (CF-GPS) algorithm to leverage Structural Causal Models (SCM) for counterfactual evaluation of alternative policies.
+    - *why interesting*: Using SCM to guide policy learning may be regarded as an extension of our work. Need to know in this paper whether the SCM is given as a prior knowledge of the environment or learned from the environment.
   * [Graph Neural Networks: A Review of Methods and Applications](https://arxiv.org/pdf/1812.08434.pdf)
 - Worth reading
   * [Reinforcement Learning and Control as Probabilistic Inference: Tutorial and Review](https://arxiv.org/pdf/1805.00909.pdf)
     - A framework that generalizes optimal control or reinforcement learning problems to the exact inference problem in probabilistic graphical models (PGMs). In this way, learning the optimal policy in RL is equivalent to inference on the special probabilistic graphical models. 
-    - *why interesting*: This is a potentially very influential paper since it unifies RL with PGMs. This may guide or even alter the design of our system in a fundamental way. 
-  * [Woulda, Coulda, Shoulda: Counterfactually-Guided Policy Search](https://openreview.net/forum?id=BJG0voC9YQ)
-    - Introduce Counterfactually-Guided Policy Search (CF-GPS) algorithm to leverage Structural Causal Models (SCM) for counterfactual evaluation of alternative policies.
-    - *why interesting*: Using SCM to guide policy learning may be regarded as an extension of our work. Need to know in this paper whether the SCM is given as a prior knowledge of the environment or learned from the environment.
+    - *why interesting*: This is a potentially very influential paper since it unifies RL with PGMs. This may guide or even alter the design of our system in a fundamental way.
   * [Causal Generative Neural Networks](https://arxiv.org/pdf/1711.08936.pdf)
   * [Reinforcement learning and causal models](http://gershmanlab.webfactional.com/pubs/RL_causal.pdf)
     - The first half of the chapter contrasts a “model-free” system that learns to repeat actions that lead to reward with a “model-based” system that learns a probabilistic causal model of the environment which it then uses to plan action sequences.
