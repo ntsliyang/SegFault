@@ -4,7 +4,7 @@
 
 - Must-read
   * [Playing against Nature: causal discovery for decision making under uncertainty](https://arxiv.org/pdf/1807.01268.pdf)
-    - _Extremely important!!_ Seems very similar to what we are doing
+    - **Extremely important!!** Seems very similar to what we are doing
   * [Causal Reasoning from Meta-reinforcement Learning](https://arxiv.org/pdf/1901.08162.pdf)
     - *why interesting*: The work that inspires our ideas
   * [Graph Neural Networks: A Review of Methods and Applications](https://arxiv.org/pdf/1812.08434.pdf)
