@@ -1,0 +1,86 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2018
+
+% ready for submission
+% \usepackage{neurips_2018}
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+%     \usepackage[preprint]{neurips_2018}
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+     \usepackage[final]{nips_2018}
+
+% to avoid loading the natbib package, add option nonatbib:
+%     \usepackage[nonatbib]{neurips_2018}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+
+\title{Project Proposal: Discover Causality by Exploiting the Structural Causal Model (SCM) by Reinforcement Learning Agent}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+\author{%
+  Jincheng Zhou \qquad Yang Li \qquad Jiaxin Cheng \qquad Tianmu Lei \vspace{.3em} \\ 
+  \large University of Southern California \vspace{.2em}\\ 
+  \normalsize
+  \{jinchenz,~yli546,~jiaxinch,~tianmule\}@usc.edu 
+}
+
+\begin{document}
+
+\maketitle
+
+\section{Motivation}
+
+\cite{2018arXiv180701268G} clarifies the learning process of a causal DAG given data points during learning from a Probabilistic Graphical Model point of view (Bayesian Network learning with Dirichlet distribution). 
+
+\cite{buesing2018woulda}  on the other hand, seems like some work that’s “downstream” to our work in that our result (learning a causal model) can be combined with that one’s (exploiting a causal model for guided policy search) and consequently be generalized to a new model-based reinforcement learning framework (one that both learns and exploits causal models).
+
+Therefore, it leads us to thinking how we can approach the problem of learning discrete and concrete state embeddings. i.e., we need the agent to have a clear mind of knowing that certain states or events correspond to certain nodes in the causal model, so that it can gradually construct the causal model in the first place before even learning it.
+
+Basically we are looking for some mechanism that endows the agent with the capability of learning “state encodings”, one that probably comes with certain semantic meanings. Theoretically we can then use this finite set of state encodings of the environment as the finite set of nodes in the causal graph.
+
+\section{Method}
+\begin{itemize}
+  \item GCN and RNN
+  \item (meta) RL: DQN, Policy Gradient, PPO, Actor-Critic, A2C, A3C, etc.
+\end{itemize}
+
+\section{Problem Formulation}
+\begin{itemize}
+  \item Input: Causal Bayesian Network (CBN) as the innate physical mechanism of the given environment	
+  \item Output: The graph learned and encoded by the GCN agent.
+\end{itemize}
+
+\section{Milestones}
+\begin{itemize}
+  \item Building the infrastructure for iterating models and conducting experiments for the project
+  \item Implement and realize the results of the paper “Causal Reasoning from Meta-reinforcement Learning”
+  \item Plug in GCN and show that GCN can learn, encode, and express toy CBNs.
+  \item Conduct thorough and rigorous experiments to show that our models and results are actually valid
+  \item Enlarge the scale of toy CBNs and show that our models can potentially learn meaningful results in a real-world seething
+\end{itemize}
+
+\section{Expected approach and results}
+
+\bibliographystyle{unsrt}  
+\bibliography{references} 
+
+\end{document}
