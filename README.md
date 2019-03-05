@@ -3,15 +3,18 @@
 ## Papers
 
 - Must-read
+  * [Playing against Nature: causal discovery for decision making under uncertainty](https://arxiv.org/pdf/1807.01268.pdf)
+    - **Extremely important!!** Seems very similar to what we are doing
   * [Causal Reasoning from Meta-reinforcement Learning](https://arxiv.org/pdf/1901.08162.pdf)
     - *why interesting*: The work that inspires our ideas
-  * [Graph Neural Networks: A Review of Methods and Applications](https://arxiv.org/pdf/1812.08434.pdf)
-  * [Playing against Nature: causal discovery for decision making under uncertainty](https://arxiv.org/pdf/1807.01268.pdf)
-    - Seems very similar to what we are doing
-- Worth reading
   * [Woulda, Coulda, Shoulda: Counterfactually-Guided Policy Search](https://openreview.net/forum?id=BJG0voC9YQ)
     - Introduce Counterfactually-Guided Policy Search (CF-GPS) algorithm to leverage Structural Causal Models (SCM) for counterfactual evaluation of alternative policies.
     - *why interesting*: Using SCM to guide policy learning may be regarded as an extension of our work. Need to know in this paper whether the SCM is given as a prior knowledge of the environment or learned from the environment.
+  * [Graph Neural Networks: A Review of Methods and Applications](https://arxiv.org/pdf/1812.08434.pdf)
+- Worth reading
+  * [Reinforcement Learning and Control as Probabilistic Inference: Tutorial and Review](https://arxiv.org/pdf/1805.00909.pdf)
+    - A framework that generalizes optimal control or reinforcement learning problems to the exact inference problem in probabilistic graphical models (PGMs). In this way, learning the optimal policy in RL is equivalent to inference on the special probabilistic graphical models. 
+    - *why interesting*: This is a potentially very influential paper since it unifies RL with PGMs. This may guide or even alter the design of our system in a fundamental way.
   * [Causal Generative Neural Networks](https://arxiv.org/pdf/1711.08936.pdf)
   * [Reinforcement learning and causal models](http://gershmanlab.webfactional.com/pubs/RL_causal.pdf)
     - The first half of the chapter contrasts a “model-free” system that learns to repeat actions that lead to reward with a “model-based” system that learns a probabilistic causal model of the environment which it then uses to plan action sequences.
@@ -28,7 +31,7 @@
   * [Combined Reinforcement Learning via Abstract Representations](https://arxiv.org/pdf/1809.04506.pdf)
     - In the quest for efficient and robust reinforcement learning methods, both model-free and model-based approaches offer advantages. In this paper we propose a new way of explicitly bridging both approaches via a shared low-dimensional learned encoding of the environment, meant to capture summarizing abstractions.
     - *why interesting*: May shed lights on learning representations from the environment.
-  * [Characterizing and Learning Equivalence Classes of Causal DAGs under Interventions](https://docs.google.com/viewer?a=v&pid=sites&srcid=ZGVmYXVsdGRvbWFpbnxmYWltMTh3c2NhdXNhbG1sfGd4OjIwODIyNWVmMTc4NjQxNjM)
+  * [Characterizing and Learning Equivalence Classes of Causal DAGs under Interventions](https://arxiv.org/pdf/1802.06310.pdf)
     - We consider the problem of learning causal DAGs in the setting where both observational and interventional data is available. This setting is common in biology, where gene regulatory networks can be intervened on using chemical reagents or gene deletions. Hauser & Buhlmann (2012) previously characterized the identifiability of causal DAGs under perfect interventions, which eliminate dependencies between targeted variables and their direct causes. In this paper, we extend these identifiability results to general interventions, which may modify the dependencies between targeted variables and their causes without eliminating them. We define and characterize the interventional Markov equivalence class that can be identified from general (not necessarily perfect) intervention experiments. We also propose the first provably consistent algorithm for learning DAGs in this setting and evaluate our algorithm on simulated and biological datasets.
   * [Causal Confusion in Imitation Learning](https://people.eecs.berkeley.edu/~dineshjayaraman/projects/causal_confusion_nips18.pdf)
     - Shows that causally-unaware imitation learning is bad. We propose a solution to combat causal confusion, which involves first inferring a distribution over potential causal models consistent with the behavioral cloning objective, then identifying the correct hypothesis through “intervention”. Our approach permits intervention in the form either of expert queries or of policy execution in the environment.
