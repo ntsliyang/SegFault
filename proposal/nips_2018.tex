@@ -26,7 +26,7 @@
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
 
-\title{Project Proposal: Discover Causality by Exploiting the Structural Causal Model (SCM) by Reinforcement Learning Agent}
+\title{Project Proposal: Discover and Exploit Causality in the Environment via a Combination of Probabilistic Graphical Models and Deep Reinforcement Learning Algorithms}
 
 % The \author macro works with any number of authors. There are two commands
 % used to separate the names and addresses of multiple authors: \And and \AND.
@@ -47,38 +47,81 @@
 
 \maketitle
 
+\section{Goal of the proposed project}
+    Devise and implement a model-based reinforcement learning algorithmic framework capable of discovering the causal relations in the environment by explicitly learning a Structured Causal Model (SCM) and using the learned causal model to guide its policy search. 
+
 \section{Motivation}
 
-\cite{2018arXiv180701268G} clarifies the learning process of a causal DAG given data points during learning from a Probabilistic Graphical Model point of view (Bayesian Network learning with Dirichlet distribution). 
+The ability to discover causal relations in the environment is vital for human to survive as the truly intelligent creatures on earth. Without this capability, it is not possible for the mankind to probe the nature and form sophisticated scientific theories such as mathematics, physics and chemistry that define the modern civilization. This goes the same with artificial intelligent agents. Being able to understand its environment by learning the causal mechanism in the surroundings, such an agent can efficiently learn a better policy by reflecting on its past actions through counterfactual reasoning \cite{buesing2018woulda}. Besides, because it has the causal models in mind, the agent can also explain its actions and strategies through causal inference, and such an explicitly encoded causal model can be later transferred and utilized by other agents operating in similar environments. Some argues that such a capability is necessary for any agent to be considered as a "general intelligence" \cite{Pearl:2018:BWN:3238230}. 
 
-\cite{buesing2018woulda}  on the other hand, seems like some work that’s “downstream” to our work in that our result (learning a causal model) can be combined with that one’s (exploiting a causal model for guided policy search) and consequently be generalized to a new model-based reinforcement learning framework (one that both learns and exploits causal models).
+However, discovering and exploiting the causal structure in the environment is a crucial challenge for intelligent agents. Current state-of-the-art reinforcement learning algorithms that rely on deep neural networks are experts in discovering correlations in the environment, but correlations does not imply causation. Without an explicit structural component that serves as the encoding of causal relations in the environment, such agents not only suffer from terrible sample efficiency, but are notoriously bad with respect to the explainability of their behaviors and transferability as well. 
 
-Therefore, it leads us to thinking how we can approach the problem of learning discrete and concrete state embeddings. i.e., we need the agent to have a clear mind of knowing that certain states or events correspond to certain nodes in the causal model, so that it can gradually construct the causal model in the first place before even learning it.
-
-Basically we are looking for some mechanism that endows the agent with the capability of learning “state encodings”, one that probably comes with certain semantic meanings. Theoretically we can then use this finite set of state encodings of the environment as the finite set of nodes in the causal graph.
-
-\section{Method}
-\begin{itemize}
-  \item GCN and RNN
-  \item (meta) RL: DQN, Policy Gradient, PPO, Actor-Critic, A2C, A3C, etc.
-\end{itemize}
+Inspired by the ground-breaking work in \cite{buesing2018woulda} and the theoretical foundation laid in \cite{2018arXiv180701268G}, as well as some preliminary but interesting experiments conducted in \cite{2019arXiv190108162D}, we believe that it is feasible to devise an algorithmic framework that combines state-of-the-art Deep RL algorithms with Causal Bayesian Networks (a.k.a. Structured Causal Models), which would endow the agent with the ability to understand causality.
 
 \section{Problem Formulation}
+
 \begin{itemize}
-  \item Input: Causal Bayesian Network (CBN) as the innate physical mechanism of the given environment	
-  \item Output: The graph learned and encoded by the GCN agent.
+  \item Input: 
+  Any reinforcement learning environment, either synthetic (artificial environment with randomly generated Causal Bayesian Network as its latent causal mechanism), control-theoretic (CartPole, LunarLanding, etc.), or gaming (Atari games that are commonly used as the benchmark environment for RL algorithms) 
+  \item Output: 
+    \begin{enumerate}
+        \item An agent that performs well in the given environment
+        \item A Structured Causal Model that the agent learned during its interactions with the environment. 
+    \end{enumerate}
 \end{itemize}
+
+\section{Method}
+
+The general framework will be a combination of state-of-the-art RL algorithms (PPO, DDPG, SAC, etc.) with a mechanism that provides functionalities to perform inference (either exact or approximate) as well as learning on a Structured Causal Model. Learning and inference is quite easy on the part of SCM since past literature on probabilistic inference already provides us with efficient and theoretically sound algorithms to learn a Probabilistic Graphical Model. 
+
+However, there are multiple options with repect to the specific design of the RL agent and how deep neural networks play a part in this game. 
+
+The simplest option is to consider the agent as a model-based reinforcement learning agent, where it learns the SCM as its model of the environment. However, it is unclear in the current stage how the agent could learn such a SCM and using use this SCM as part of its policy generation. 
+
+The second option, inspired by \cite{2019arXiv190108162D}, is to use a meta-reinforcement learning agent, powered by Recurrent Neural Network, that learns an optimal meta-policy which will guide the agent when and how to interact with the environment so as to obtain the causal model with maximum efficiency. In other words, this meta-RL agent will learn \textit{how} to learn the causal relations. 
+
+Another option, is to apply the framework described in \cite{DBLP:journals/corr/abs-1805-00909}, which generalizes reinforcement learning problems as inference problems in specially constructed Probabilistic Graphical Models. This framework is sometimes also termed "maximum entropy reinforcement learning." Because the Structured Causal Model is defined by a Causal Bayesian Network, which is essentially a Probabilistic Graphical Model, this may potentially results in an architecture that coherently integrate the SCM with the policy network. 
+
+There are also other aspects during the learning process which involves special designs and to which the learned SCM may contribute. For example, \cite{buesing2018woulda} describes how a Structured Causal Model can be used by an off-policy algorithm to guide its policy search and demonstrates the benefits, though this method comes with strong assumptions and certain limitations. We may try to integrate this method as part of our algorithmic framework so that it becomes more powerful. 
+
+We will go about trying all these ideas and eventually come up with an elegant and self-contained framework.
 
 \section{Milestones}
 \begin{itemize}
-  \item Building the infrastructure for iterating models and conducting experiments for the project
-  \item Implement and realize the results of the paper “Causal Reasoning from Meta-reinforcement Learning”
-  \item Plug in GCN and show that GCN can learn, encode, and express toy CBNs.
-  \item Conduct thorough and rigorous experiments to show that our models and results are actually valid
-  \item Enlarge the scale of toy CBNs and show that our models can potentially learn meaningful results in a real-world seething
+  \item Implement a simple model-based RL agent that learns and uses the SCM as part of its policy.
+  \item Test its performance on synthetic environments by comparing it to baseline (random) agents and agents that uses traditional deep RL algorithms (PPO, Actor-Critic, etc.).
+  \item Devise a theoretical way for the agent to identify the important events happened in the environment so that it is able to encode this event as the nodes in the SCM.
+  \item Implement an advanced agent with such event encoding capability 
+  \item Tests the agent's performance on more meaningful environments, such as control-theoretic and/or gaming environments, and see whether it learns a meaningful and useful causal model
+  \item Integrate the method described in \cite{buesing2018woulda} in the agent's off-policy learning algorithms.
+  \item Tests the agent's performance and compare them to state-of-the-art Deep Reinforcement Learning algorithms. 
 \end{itemize}
 
-\section{Expected approach and results}
+\section{Expected Results}
+
+We expect that our agent, endowed with the ability to discover causality and exploit it for policy search, will learn a valid and useful causal model of the environment as well as performs no worse than state-of-the-art algorithms while have much better sample efficiency. 
+
+\section{Related Works}
+\cite{2017arXiv170706170P}
+\cite{2017arXiv171108936G}
+\cite{2018arXiv180206310Y}
+\cite{2018arXiv180500909L}
+\cite{2018arXiv180509044L}
+\cite{2018arXiv180701268G}
+\cite{2018arXiv180709341K}
+\cite{2018arXiv180904506F}
+\cite{2018arXiv181208434Z}
+\cite{2019arXiv190108162D}
+\cite{2019arXiv190109895M}
+\cite{Budhathoki2018RuleDF}
+\cite{DBLP:journals/corr/abs-1805-00909}
+\cite{GERSHMAN201543}
+\cite{Gershman2017ReinforcementLA}
+\cite{Pearl:2009:CMR:1642718}
+\cite{Pearl:2018:BWN:3238230}
+\cite{Pim2018CausalConfusion}
+\cite{buesing2018woulda}
+
 
 \bibliographystyle{unsrt}  
 \bibliography{references} 
