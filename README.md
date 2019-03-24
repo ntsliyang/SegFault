@@ -5,13 +5,34 @@
 - Must-read
   * [Playing against Nature: causal discovery for decision making under uncertainty](https://arxiv.org/pdf/1807.01268.pdf)
     - **Extremely important!!** Seems very similar to what we are doing
-  * [Causal Reasoning from Meta-reinforcement Learning](https://arxiv.org/pdf/1901.08162.pdf)
-    - *why interesting*: The work that inspires our ideas
+  * [Causal Learning versus Reinforcement Learning for Knowledge Learning and Problem Solving](https://aaai.org/ocs/index.php/WS/AAAIW17/paper/view/15182/14741)
   * [Woulda, Coulda, Shoulda: Counterfactually-Guided Policy Search](https://openreview.net/forum?id=BJG0voC9YQ)
     - Introduce Counterfactually-Guided Policy Search (CF-GPS) algorithm to leverage Structural Causal Models (SCM) for counterfactual evaluation of alternative policies.
     - *why interesting*: Using SCM to guide policy learning may be regarded as an extension of our work. Need to know in this paper whether the SCM is given as a prior knowledge of the environment or learned from the environment.
+  * [Causal Reasoning from Meta-reinforcement Learning](https://arxiv.org/pdf/1901.08162.pdf)
+    - *why interesting*: The work that inspires our ideas
   * [Graph Neural Networks: A Review of Methods and Applications](https://arxiv.org/pdf/1812.08434.pdf)
 - Worth reading
+  - **Papers on Exploration problems**
+    - **Prediction-based exploration**
+      - **Prediction error based**
+        * [Surprise-Based Intrinsic Motivation for Deep Reinforcement Learning](https://arxiv.org/pdf/1703.01732.pdf)
+        * [Curiosity-driven Exploration by Self-supervised Prediction](https://arxiv.org/pdf/1705.05363.pdf)
+        * [Incentivizing Exploration in Reinforcement Learning with Deep Predictive Models](https://arxiv.org/pdf/1507.00814.pdf)
+      - **Prediction uncertainty based**
+        * [VIME: Variational Information Maximizing Exploration](https://arxiv.org/pdf/1605.09674.pdf)
+        * [An information-theoretic approach to curiosity-driven reinforcement learning](http://www2.hawaii.edu/~sstill/StillPrecup2011.pdf)
+      - **Prediction improvement based**
+        * [Exploration in Model-based Reinforcement Learning by Empirically Estimating Learning Progress](https://papers.nips.cc/paper/4642-exploration-in-model-based-reinforcement-learning-by-empirically-estimating-learning-progress.pdf)
+    - **State visitation counts based exploration**
+      * [#Exploration: A Study of Count-Based Exploration for Deep Reinforcement Learning](https://arxiv.org/pdf/1611.04717.pdf)
+      * [Unifying Count-Based Exploration and Intrinsic Motivation](https://arxiv.org/pdf/1606.01868.pdf)
+      * [EX2: Exploration with Exemplar Models for Deep  Reinforcement Learning](https://arxiv.org/pdf/1703.01260.pdf)
+      * [Count-Based Exploration with Neural Density Models](https://arxiv.org/pdf/1703.01310.pdf)
+    - **Empowerment: Control over state**
+      * [Variational Intrinsic Control](https://arxiv.org/pdf/1611.07507.pdf)
+    - **Diversity to learn skills**
+      * [Diversity is All You Need: Learning Skills Without a Reward Function](https://arxiv.org/pdf/1802.06070.pdf)
   * [Reinforcement Learning and Control as Probabilistic Inference: Tutorial and Review](https://arxiv.org/pdf/1805.00909.pdf)
     - A framework that generalizes optimal control or reinforcement learning problems to the exact inference problem in probabilistic graphical models (PGMs). In this way, learning the optimal policy in RL is equivalent to inference on the special probabilistic graphical models. 
     - *why interesting*: This is a potentially very influential paper since it unifies RL with PGMs. This may guide or even alter the design of our system in a fundamental way.
