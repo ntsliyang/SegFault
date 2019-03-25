@@ -2,17 +2,30 @@
 
 ## Papers
 
-- Must-read
+- Must-read (Motivations)
   * [Playing against Nature: causal discovery for decision making under uncertainty](https://arxiv.org/pdf/1807.01268.pdf)
     - **Extremely important!!** Seems very similar to what we are doing
+  * [Reinforcement learning and causal models](http://gershmanlab.webfactional.com/pubs/RL_causal.pdf)
+    - In-depth review of the role of causal models in RL from the cognitive psychological perspective. Roots our motivations in the field of cognitive psychology.
+    - "In this chapter, I have argued that causal knowledge plays several roles in RL. First, model-based RL involves building a causal model of the environment and using this model to compute values. Second, both model-based and model-free RL rely upon inferences about latent causes in partially observable domains."
+    - How model-free RL and model-based RL both compete (for control over agent's behavior) and cooperate (w.r.t. level of uncertainty of their values) with each other
+    - In POMDP, why necessary to infer the latent causes and build a Latent Cause Model for model-based RL
   * [Causal Learning versus Reinforcement Learning for Knowledge Learning and Problem Solving](https://aaai.org/ocs/index.php/WS/AAAIW17/paper/view/15182/14741)
+  * [Reinforcement learning and causal models](http://gershmanlab.webfactional.com/pubs/RL_causal.pdf)
+    - This chapter reviews the diverse roles that causal knowledge plays in reinforcement learning.
+The first half of the chapter contrasts a “model-free” system that learns to repeat actions that lead to reward with a “model-based” system that learns a probabilistic causal model of the environment which it then uses to plan action sequences. Evidence suggests that these two systems coexist in the brain, both competing and cooperating with each other. The interplay of two systems allows the brain to negotiate a balance between cognitively cheap but inaccurate model-free algorithms and accurate but expensive model-based algorithms. The second half of the chapter reviews research on hidden state inference in reinforcement learning. The problem of inferring hidden states can be construed in terms of inferring the latent causes that give rise to sensory data and rewards. Because hidden state inference affects both model-based and model-free reinforcement learning, causal knowledge impinges upon both systems.
   * [Woulda, Coulda, Shoulda: Counterfactually-Guided Policy Search](https://openreview.net/forum?id=BJG0voC9YQ)
     - Introduce Counterfactually-Guided Policy Search (CF-GPS) algorithm to leverage Structural Causal Models (SCM) for counterfactual evaluation of alternative policies.
     - *why interesting*: Using SCM to guide policy learning may be regarded as an extension of our work. Need to know in this paper whether the SCM is given as a prior knowledge of the environment or learned from the environment.
   * [Causal Reasoning from Meta-reinforcement Learning](https://arxiv.org/pdf/1901.08162.pdf)
     - *why interesting*: The work that inspires our ideas
   * [Graph Neural Networks: A Review of Methods and Applications](https://arxiv.org/pdf/1812.08434.pdf)
+
 - Worth reading
+  - **Papers on Causality**
+    - **Inductive Causal Learning**
+      * [Learning Causal Structure through Local Prediction-error Learning](https://kilthub.cmu.edu/articles/Learning_Causal_Structure_through_Local_Prediction-error_Learning/6492104)
+        - Research on human causal learning has largely focused on strength learning, or on computational-level theories; there are few formal algorithmic models of how people learn causal structure from covariations. We introduce a model that learns causal structure in a local manner via prediction-error learning. This local learning is then integrated dynamically into a unified representation of causal structure. The model uses computationally plausible approximations of (locally) rational learning, and so represents a hybrid between the associationist and rational paradigms in causal learning research. We conclude by showing that the model provides a good fit to data from a previous experiment.
   - **Papers on Exploration problems**
     - **Prediction-based exploration**
       - **Prediction error based**
@@ -33,6 +46,10 @@
       * [Variational Intrinsic Control](https://arxiv.org/pdf/1611.07507.pdf)
     - **Diversity to learn skills**
       * [Diversity is All You Need: Learning Skills Without a Reward Function](https://arxiv.org/pdf/1802.06070.pdf)
+
+  - **Papers on Inductive Causal Learning**
+
+
   * [Reinforcement Learning and Control as Probabilistic Inference: Tutorial and Review](https://arxiv.org/pdf/1805.00909.pdf)
     - A framework that generalizes optimal control or reinforcement learning problems to the exact inference problem in probabilistic graphical models (PGMs). In this way, learning the optimal policy in RL is equivalent to inference on the special probabilistic graphical models. 
     - *why interesting*: This is a potentially very influential paper since it unifies RL with PGMs. This may guide or even alter the design of our system in a fundamental way.
