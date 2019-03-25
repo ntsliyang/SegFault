@@ -24,10 +24,14 @@
   - **Inductive Causal Learning**
       * [Learning Causal Structure through Local Prediction-error Learning](https://kilthub.cmu.edu/articles/Learning_Causal_Structure_through_Local_Prediction-error_Learning/6492104)
         - Research on human causal learning has largely focused on strength learning, or on computational-level theories; there are few formal algorithmic models of how people learn causal structure from covariations. We introduce a model that learns causal structure in a local manner via prediction-error learning. This local learning is then integrated dynamically into a unified representation of causal structure. The model uses computationally plausible approximations of (locally) rational learning, and so represents a hybrid between the associationist and rational paradigms in causal learning research. We conclude by showing that the model provides a good fit to data from a previous experiment.
-
+  - **Using Causality**
+      * [Exploiting Causality for Efficient Monitoring in POMDPs](https://arxiv.org/pdf/1401.7941.pdf)
+        - Belief filtering in DBNs is the task of inferring the belief state (i.e. the probability distribution over process states) based on incomplete and noisy observations. This can be a hard problem in complex processes with large state spaces. In this article, we explore the idea of accelerating the filtering task by automatically exploiting causality in the process. 
 
 ### 3. Papers on RL Exploration problems
 
+  * [Large-Scale Study of Curiosity-Driven Learning](https://arxiv.org/pdf/1808.04355.pdf)
+    - A comprehensive literature review and empirical experiments on intrinsic motivation based exploration strategies.
   - **Prediction-based exploration**
     - **Prediction error based**
       * [Surprise-Based Intrinsic Motivation for Deep Reinforcement Learning](https://arxiv.org/pdf/1703.01732.pdf)
