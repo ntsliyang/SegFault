@@ -22,6 +22,7 @@ class LPLGraph(object):
         """
 
         # set parameters
+        self._num_actions = num_actions
         self._num_particles = num_particles
         self._particle_init_mean = particle_init_mean
         self._particle_init_std = particle_init_std
@@ -40,6 +41,9 @@ class LPLGraph(object):
         # The number of action nodes is (2 ** state_hash_size) * num_actions
         self.G.add_nodes_from(["state_" + str(i) + "_action_" + str(j)
                                for i in range(2 ** state_hash_size) for j in range(num_actions)])
+
+        # Add action choice nodes for probability inference. The number of action choice nodes is 2 ** state_hash_size
+        self.G.add_nodes_from(["state_" + str(i) + "_action_choice" for i in range(2 ** state_hash_size)])
 
     def _convert_state_node_code(self, state):
         """
@@ -70,17 +74,13 @@ class LPLGraph(object):
 
         return action_node
 
-    def _add_edge(self, action, state):
+    def _add_causal_edge(self, action_node, state_node):
         """
-            Add an edge between an action and state
+            Add a causal edge between an action node and state node
 
-        :param action:  action node. Integer or string
-        :param state:   state node. Integer or string
+        :param action_node:  action node. Integer or string
+        :param state_node:   state node. Integer or string
         """
-
-        # Turn node integer representation into string representation
-        state_node = self._convert_state_node_code(state)
-        action_node = self._convert_action_node_code(state_node, action)
 
         # Check if the edge already exists. If yes, return
         if state_node in list(self.G.neighbors(action_node)):
@@ -91,11 +91,56 @@ class LPLGraph(object):
         #   V_a: particles for the action as cause
         #   V_s: particles for the state as outcome
         attr = {"type": "potential",
-                "V_a": np.random.normal(self._particle_init_mean, self._particle_init_std, size=(self._num_particles)),
-                "V_s": np.random.normal(self._particle_init_mean, self._particle_init_std, size=(self._num_particles))}
+                "V_a": np.random.normal(self._particle_init_mean, self._particle_init_std, size=(self._num_particles))
+                }
 
         # Create edge with attribute
         self.G.add_edges_from([(action_node, state_node, attr)])
+
+    def _add_inference_edge(self, action_choice_node, state_node):
+        """
+            Add a inference edge between an action choice node and state node, and modify the state node's Beta
+                distribution hyperparameters.
+
+        :param action_choice_node:
+        :param state_node:
+        :return:
+        """
+
+        # Check if the edge already exists. If yes, return
+        if state_node in list(self.G.neighbors(action_choice_node)):
+            return
+
+        # Modify the stat node's Beta distribution hyperparameters. Add another dimension for the new associated action.
+        #   Note that the hyperparameters shall be positive. So initialize the "prior" hyperparameters to be all one.
+        # The Beta hyperparameter matrix for a state should have shape (#associated action nodes, #actions, 2)
+        #   e.g. beta[3][5][0] is the alpha counts when the 3rd associated action nodes taking the 5th action and
+        #   results in the current state node.
+
+        # Initialize new slice
+        beta = np.ones((1, self._num_actions, 2))
+        beta_index = 0
+        if "beta" in self.G.nodes[state_node]:
+            beta_index = self.G.nodes[state_node]["beta"].shape[0]
+            self.G.nodes[state_node]["beta"] = np.append(self.G.nodes[state_node]["beta"], beta, axis=0)
+        else:
+            self.G.nodes[state_node]["beta"] = beta
+
+        # Store the beta tensor index in the edge attribute
+        attr = {"beta_index": beta_index}
+
+        # Create the edge with attribute
+        self.G.add_edges_from([(action_choice_node, state_node, attr)])
+
+    def _transition_model(self, action_choice_node, state_node):
+        """
+            Return a pyro stochastic function (model) of the action -> state stochastic transition
+
+        :param action_choice_node:
+        :param state_node:
+        :return:
+        """
+
 
     def _expected(self, layer, state, potential_action=None):
         """
@@ -118,7 +163,7 @@ class LPLGraph(object):
 
             # Check if the edge already exists. If not, create the edge first
             if state_node not in list(self.G.neighbors(potential_action_node)):
-                self._add_edge(potential_action_node, state_node)
+                self._add_causal_edge(potential_action_node, state_node)
 
         expected, cum_prod = 1, 1
 
@@ -140,7 +185,7 @@ class LPLGraph(object):
 
         return expected
 
-    def _modify_edge(self, action, state):
+    def _change_edge_type(self, action, state):
         """
             Perform t-test on the action's particles to determine whether to modify the edge type.
                 E.g. from "potential" to "definite" or from "potential" to "none"
@@ -171,7 +216,25 @@ class LPLGraph(object):
         if p_val < self._p_critical:
             self.G[action_node][state_node]["type"] = "none"
 
-    def update_causal_strength(self, prev_state, action, next_state):
+    def _update_causal_strength(self, layer, action_node, state_node, expected_val):
+        """
+
+        :param action_node:
+        :param state_node:
+        :param expected_val:
+        :return:
+        """
+
+        # Update particle value in the specified layer
+        self.G[action_node][state_node]["V_a"][layer] += self._lr * (1 - expected_val)
+
+        # Clip the values so that they do not explode
+        self.G[action_node][state_node]["V_a"][layer] = self.G[action_node][state_node]["V_a"][layer].clip(-1, 1)
+
+        # Hypothesis test to determine whether to modify the edge type
+        self._change_edge_type(action_node, state_node)
+
+    def update_transition(self, prev_state, action, next_state):
         """
 
         :param prev_state:
@@ -184,53 +247,55 @@ class LPLGraph(object):
         action_node = self._convert_action_node_code(prev_state_node, action)
         next_state_node = self._convert_state_node_code(next_state)
 
+
+        # Update causal strength
         # If the edge (action -> next_state) does not exist, create one
         if next_state_node not in list(self.G.neighbors(action_node)):
-            self._add_edge(action_node, next_state_node)
-            return
+            self._add_causal_edge(action_node, next_state_node)
 
         # Otherwise, iterate through each layer and update particle values
-        for i in range(self._num_particles):
+        else:
+            for i in range(self._num_particles):
+                # Update causal strength (s_t, a_t) -> s_t+1 with observed = 1
+                next_state_expected_val = self._expected(i, next_state_node, action_node)
+                self._update_causal_strength(i, action_node, next_state_node, next_state_expected_val)
 
-            # Update causal strength (s_t, a_t) -> s_t+1 with observed = 1
-            next_state_expected_val = self._expected(i, next_state_node, action_node)
-            # print("layer: ", i, ", previous particle_val: ", self.G[action_node][next_state_node]["V_a"][i])
-            self.G[action_node][next_state_node]["V_a"][i] += self._lr * (1 - next_state_expected_val)
+                # For every other (observed) potential cause (s, a) of s_t+1, update with observed = 0
+                for potential_action_node in list(self.G.predecessors(next_state_node)):
+                    if potential_action_node != action_node and \
+                            self.G[potential_action_node][next_state_node]["type"] != "none":
+                        self._update_causal_strength(i, potential_action_node, next_state_node, next_state_expected_val)
 
-            # Clip the values so that they do not explode
-            self.G[action_node][next_state_node]["V_a"][i] = self.G[action_node][next_state_node]["V_a"][i].clip(-1, 1)
-            # print("\t next_state_expected_val: ", next_state_expected_val, ", particle_val: ", self.G[action_node][next_state_node]["V_a"][i])
+                # For every other (observed) potential outcome s of (s_t, a_t), update with observed = 0
+                for potential_state_node in list(self.G.successors(action_node)):
+                    if potential_state_node != next_state_node and \
+                            self.G[action_node][potential_state_node]["type"] != "none":
+                        # Need to calculate the expected effect value of each potential outcome state
+                        state_expected_val = self._expected(i, potential_state_node, action_node)
+                        self._update_causal_strength(i, action_node, potential_state_node, state_expected_val)
 
-            # Hypothesis test to determine whether to modify the edge type
-            self._modify_edge(action_node, next_state_node)
 
-            # For every other (established) potential cause (s, a) of s_t+1, update with observed = 0
-            for potential_action_node in list(self.G.predecessors(next_state_node)):
-                if potential_action_node != action_node and \
-                        self.G[potential_action_node][next_state_node]["type"] != "none":
-                    self.G[potential_action_node][next_state_node]["V_a"][i] += self._lr * (0 - next_state_expected_val)
+        # Update state nodes' beta distribution hyperparameters
+        # Obtain action choice and action choice node
+        if type(action) is int:
+            action_choice = action
+        else:
+            action_choice = int(action_node[-1])
+        action_choice_node = prev_state_node + "_action_choice"
 
-                    # Clip the values so that they do not explode
-                    self.G[potential_action_node][next_state_node]["V_a"][i] = \
-                        self.G[potential_action_node][next_state_node]["V_a"][i].clip(-1, 1)
+        # If the edge (action -> next_state) does not exist, create one
+        if next_state_node not in list(self.G.neighbors(action_choice_node)):
+            self._add_inference_edge(action_choice_node, next_state_node)
 
-                    # Hypothesis test to determine whether to modify the edge type
-                    self._modify_edge(potential_state_node, next_state_node)
+        # Update alpha count for s_t+1
+        beta_index = self.G[action_choice_node][next_state_node]["beta_index"]
+        self.G.nodes[next_state_node]["beta"][beta_index][action_choice][0] += 1
 
-            # For every other (established) potential outcome s of (s_t, a_t), update with observed = 0
-            for potential_state_node in list(self.G.successors(action_node)):
-                if potential_state_node != next_state_node and \
-                        self.G[action_node][potential_state_node]["type"] != "none":
-                    # Need to calculate the expected effect value of each potential outcome state
-                    state_expected_val = self._expected(i, potential_state_node, action_node)
-                    self.G[action_node][potential_state_node]["V_a"][i] += self._lr * (0 - state_expected_val)
-
-                    # Clip the values so that they do not explode
-                    self.G[action_node][potential_state_node]["V_a"][i] = \
-                        self.G[action_node][potential_state_node]["V_a"][i].clip(-1, 1)
-
-                    # Hypothesis test to determine whether to modify the edge type
-                    self._modify_edge(action_node, potential_state_node)
+        # For every other (observed) outcome s of (s_t, a_t), update its beta account
+        #   i.e. action a_t took place but did not result in s
+        for outcome_state_node in list(self.G.successors(action_choice_node)):
+            beta_index = self.G[action_choice_node][outcome_state_node]["beta_index"]
+            self.G.nodes[outcome_state_node]["beta"][beta_index][action_choice][1] += 1
 
     def get_particles(self, state, action, next_state=None):
         """
