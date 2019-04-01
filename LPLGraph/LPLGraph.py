@@ -4,16 +4,23 @@ import numpy as np
 from scipy import stats
 import torch
 import pyro
-
+from pyro.distributions import BetaBinomial
 
 class LPLGraph(object):
 
-    def __init__(self, state_hash_size, num_actions, num_particles=5, particle_init_mean=0, particle_init_std=1, learning_rate=0.1, p_critical=1e-7):
+    def __init__(self, state_hash_size, num_actions, policy_model_generator=None, num_particles=5, particle_init_mean=0, particle_init_std=1, learning_rate=0.1, p_critical=1e-7):
         """
 
         :param state_hash_size: the length of the binary hash code for states. The total number of state representations
                                 is 2 ** state_hash_size
         :param num_actions: The number of discrete (or discretized) action representations
+        :param policy_model: A pyro model generator that can generate stochastic pyro functions (models) that represent
+                             the current stochastic policy transition from state to action.
+                             Requirements:
+                             - param State_code: The hash code representation of the given canonical state as in the
+                                                 causal graph (base 10).
+                             - param Prefix: The name prefix to use when sampling variables using pyro distributions
+                             - return: The hash code representation of the resulting choice of action.
         :param num_particles:   The number of particles (layers) for each node in each causal link
         :param particle_init_mean:  Mean of particles' initial values
         :param particle_init_std:   Standard deviation of particles' initial values
@@ -22,6 +29,7 @@ class LPLGraph(object):
         """
 
         # set parameters
+        self._policy_model_generator = policy_model_generator
         self._num_actions = num_actions
         self._num_particles = num_particles
         self._particle_init_mean = particle_init_mean
@@ -44,6 +52,17 @@ class LPLGraph(object):
 
         # Add action choice nodes for probability inference. The number of action choice nodes is 2 ** state_hash_size
         self.G.add_nodes_from(["state_" + str(i) + "_action_choice" for i in range(2 ** state_hash_size)])
+
+        # TODO: Add optimality variables and corresponding edges and pyro stochastic models. 
+
+    def update_policy_model_generator(self, generator):
+        """
+            Update the policy model generator. Used when the actual policy is updated.
+        :param generator:
+        :return:
+        """
+
+        self._policy_model_generator = generator
 
     def _convert_state_node_code(self, state):
         """
@@ -132,15 +151,33 @@ class LPLGraph(object):
         # Create the edge with attribute
         self.G.add_edges_from([(action_choice_node, state_node, attr)])
 
-    def _transition_model(self, action_choice_node, state_node):
+        # Create the stochastic transition model and attribute it to the edge
+        stoc_model = self._generate_transition_model(action_choice_node, state_node)
+        self.G[action_choice_node][state_node]["stoc_model"] = stoc_model
+
+    def _generate_transition_model(self, action_choice_node, state_node):
         """
-            Return a pyro stochastic function (model) of the action -> state stochastic transition
+            Return a pyro stochastic function (model) of the action -> state stochastic transition that comprises of
+                a Beta-Binomial distribution, where the success probability of the state turned up as the outcome of
+                the given choice of action is unknown and drawn from a beta prior distribution. The function will first
+                sample the success probability and use that to sample the outcome (0 or 1).
 
         :param action_choice_node:
         :param state_node:
         :return:
         """
+        beta_index = self.G[action_choice_node][state_node]["beta_index"]
+        param = self.G.nodes[state_node]["beta"]
 
+        def stoc_model(action_choice):
+            alpha = param[beta_index][action_choice][0]
+            beta = param[beta_index][action_choice][1]
+            alpha = torch.tensor(alpha, dtype=torch.float32)
+            beta = torch.tensor(beta, dtype=torch.float32)
+            outcome = pyro.sample(action_choice_node + "->" + state_node, BetaBinomial(alpha, beta))
+            return outcome
+
+        return stoc_model
 
     def _expected(self, layer, state, potential_action=None):
         """
@@ -289,13 +326,20 @@ class LPLGraph(object):
 
         # Update alpha count for s_t+1
         beta_index = self.G[action_choice_node][next_state_node]["beta_index"]
-        self.G.nodes[next_state_node]["beta"][beta_index][action_choice][0] += 1
+        self.G.nodes[next_state_node]["beta"][beta_index][action_choice][0] += 1    # 0 is alpha cound
 
-        # For every other (observed) outcome s of (s_t, a_t), update its beta account
+        # Update the stochastic transition model
+        stoc_model = self._generate_transition_model(action_choice_node, next_state_node)
+        self.G[action_choice_node][next_state_node]["stoc_model"] = stoc_model
+
+        # For every other (observed) outcome s of (s_t, a_t), update its beta count and the corresponding stochastic
+        #   transition model.
         #   i.e. action a_t took place but did not result in s
         for outcome_state_node in list(self.G.successors(action_choice_node)):
             beta_index = self.G[action_choice_node][outcome_state_node]["beta_index"]
-            self.G.nodes[outcome_state_node]["beta"][beta_index][action_choice][1] += 1
+            self.G.nodes[outcome_state_node]["beta"][beta_index][action_choice][1] += 1     # 1 is beta count
+            stoc_model = self._generate_transition_model(action_choice_node, outcome_state_node)
+            self.G[action_choice_node][outcome_state_node]["stoc_model"] = stoc_model
 
     def get_particles(self, state, action, next_state=None):
         """
