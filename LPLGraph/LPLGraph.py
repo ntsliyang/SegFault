@@ -4,16 +4,20 @@ import numpy as np
 from scipy import stats
 import torch
 import pyro
-from pyro.distributions import BetaBinomial
+from pyro.distributions import BetaBinomial, Bernoulli
 
 class LPLGraph(object):
 
-    def __init__(self, state_hash_size, num_actions, policy_model_generator=None, num_particles=5, particle_init_mean=0, particle_init_std=1, learning_rate=0.1, p_critical=1e-7):
+    def __init__(self, state_hash_size, num_actions, maximum_reward, reward_est_alpha=0.1, policy_model_generator=None,
+                 num_particles=5, particle_init_mean=0, particle_init_std=1, learning_rate=0.1, p_critical=1e-7):
         """
 
         :param state_hash_size: the length of the binary hash code for states. The total number of state representations
                                 is 2 ** state_hash_size
         :param num_actions: The number of discrete (or discretized) action representations
+        :param maximum_reward: The maximum possible value of reward in this environment
+        :param reward_est_alpha: The hyperparameter alpha for the moving average estimate of the reward corresponding
+                                 to a state node.
         :param policy_model: A pyro model generator that can generate stochastic pyro functions (models) that represent
                              the current stochastic policy transition from state to action.
                              Requirements:
@@ -27,9 +31,10 @@ class LPLGraph(object):
         :param learning_rate: Learning rate of LPL algorithm
         :param p_val: P value in the t-test when determine whether a causal link is definite
         """
-
         # set parameters
         self._policy_model_generator = policy_model_generator
+        self._maximum_reward = maximum_reward
+        self._reward_est_alpha = reward_est_alpha
         self._num_actions = num_actions
         self._num_particles = num_particles
         self._particle_init_mean = particle_init_mean
@@ -53,7 +58,13 @@ class LPLGraph(object):
         # Add action choice nodes for probability inference. The number of action choice nodes is 2 ** state_hash_size
         self.G.add_nodes_from(["state_" + str(i) + "_action_choice" for i in range(2 ** state_hash_size)])
 
-        # TODO: Add optimality variables and corresponding edges and pyro stochastic models. 
+        # Add optimality variables and corresponding edges and pyro stochastic models.
+        self.G.add_nodes_from(["optimality_" + str(i) for i in range(2 ** state_hash_size)])
+        self.G.add_edges_from(("state_" + str(i), "optimality_" + str(i),
+                               {
+                                   "reward_est": 0.,
+                                   "opt_model": None
+                               }) for i in range(2 ** state_hash_size))
 
     def update_policy_model_generator(self, generator):
         """
@@ -61,7 +72,6 @@ class LPLGraph(object):
         :param generator:
         :return:
         """
-
         self._policy_model_generator = generator
 
     def _convert_state_node_code(self, state):
@@ -100,7 +110,6 @@ class LPLGraph(object):
         :param action_node:  action node. Integer or string
         :param state_node:   state node. Integer or string
         """
-
         # Check if the edge already exists. If yes, return
         if state_node in list(self.G.neighbors(action_node)):
             return
@@ -179,6 +188,23 @@ class LPLGraph(object):
 
         return stoc_model
 
+    def _generate_optimality_model(self, state_node):
+        """
+            Return a pyro stochastic function (model) of the state -> optimality probability
+        :return:
+        """
+        state_idx = state_node[-1]
+        optimality_node = "optimality_" + state_idx
+        reward_est = self.G[state_node][optimality_node]["reward_est"]
+        reward_normalized = reward_est - self._maximum_reward   # Make sure the normalized reward is always negative
+
+        def stoc_model():
+            p = np.exp(reward_normalized)
+            opt = pyro.sample(state_node + "_optimality", Bernoulli(p))
+            return opt
+
+        return stoc_model
+
     def _expected(self, layer, state, potential_action=None):
         """
             Calculate the expected value of the given state as an effect variable in the specified layer, using the particles
@@ -191,7 +217,6 @@ class LPLGraph(object):
         :param potential_action:    The potential cause we are considering
         :return:    The expected effect value of the given state
         """
-
         # Turn node integer representation into string representation
         state_node = self._convert_state_node_code(state)
 
@@ -230,7 +255,6 @@ class LPLGraph(object):
         :param action:
         :param state:
         """
-
         # Turn node integer representation into string representation
         state_node = self._convert_state_node_code(state)
         action_node = self._convert_action_node_code(state_node, action)
@@ -261,7 +285,6 @@ class LPLGraph(object):
         :param expected_val:
         :return:
         """
-
         # Update particle value in the specified layer
         self.G[action_node][state_node]["V_a"][layer] += self._lr * (1 - expected_val)
 
@@ -271,7 +294,7 @@ class LPLGraph(object):
         # Hypothesis test to determine whether to modify the edge type
         self._change_edge_type(action_node, state_node)
 
-    def update_transition(self, prev_state, action, next_state):
+    def update_transition(self, prev_state, action, next_state, reward=None):
         """
 
         :param prev_state:
@@ -341,6 +364,14 @@ class LPLGraph(object):
             stoc_model = self._generate_transition_model(action_choice_node, outcome_state_node)
             self.G[action_choice_node][outcome_state_node]["stoc_model"] = stoc_model
 
+        # Update reward estimate for this state node (next_state), if the reward is given
+        if reward is not None:
+            optimality_node = "optimality_" + next_state_node[-1]
+            # Moving average estimate
+            self.G[next_state_node][optimality_node]["reward_est"] += self._reward_est_alpha * reward
+            # Update optimality model
+            self.G[next_state_node][optimality_node]["opt_model"] = self._generate_optimality_model(next_state_node)
+
     def get_particles(self, state, action, next_state=None):
         """
             If next_state is given, then return the particles of the action for that causal link specifically
@@ -351,7 +382,6 @@ class LPLGraph(object):
         :param next_state:
         :return:
         """
-
         state_node = self._convert_state_node_code(state)
         action_node = self._convert_action_node_code(state_node, action)
         if next_state is not None:
@@ -371,7 +401,6 @@ class LPLGraph(object):
         :param action:
         :return:
         """
-
         state_node = self._convert_state_node_code(state)
         action_node = self._convert_action_node_code(state_node, action)
         if next_state is not None:
