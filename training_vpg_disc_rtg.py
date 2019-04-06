@@ -6,54 +6,123 @@ import torch
 import torch.optim as optim
 from itertools import count
 import os
-from model import PolicyNet, ValueNet
-from save_and_load import save_checkpoint, load_checkpoint
-from utils import plot_durations
-from memory import Memory
+from model.vpg_discrete_rtg import PolicyNet, ValueNet
+from utils.utils import plot_durations
+from utils.memory import Memory
+import json
+import sys
+
+
+# Utils for saving and loading checkpoints
+
+def save_checkpoint(file_dir, policy_net, value_net, policynet_optim, valuenet_optim,
+                    i_epoch, policy_lr, valuenet_lr, **kwargs):
+    save_dict = {"policy_net": policy_net.state_dict(),
+                 "value_net": value_net.state_dict(),
+                 "policynet_optim": policynet_optim.state_dict(),
+                 "valuenet_optim": valuenet_optim.state_dict(),
+                 "i_epoch": i_epoch,
+                 "policy_lr": policy_lr,
+                 "valuenet_lr": valuenet_lr
+                 }
+    # Save optional contents
+    save_dict.update(kwargs)
+
+    # Create the directory if not exist
+    if not os.path.isdir(file_dir):
+        os.makedirs(file_dir)
+
+    file_name = os.path.join(file_dir, "ckpt_eps%d.pt" % i_epoch)
+
+    # Delete the file if the file already exist
+    try:
+        os.remove(file_name)
+    except OSError:
+        pass
+
+    # Save the file
+    torch.save(save_dict, file_name)
+
+
+def load_checkpoint(file_dir, i_epoch, layer_sizes, input_size, device='cuda'):
+    checkpoint = torch.load(os.path.join(file_dir, "ckpt_eps%d.pt" % i_epoch), map_location=device)
+
+    policy_net = PolicyNet(layer_sizes).to(device)
+    value_net = ValueNet(input_size).to(device)
+    policy_net.load_state_dict(checkpoint["policy_net"])
+    policy_net.train()
+    value_net.load_state_dict(checkpoint["value_net"])
+    value_net.train()
+
+    policy_lr = checkpoint["policy_lr"]
+    valuenet_lr = checkpoint["valuenet_lr"]
+
+    policynet_optim = optim.Adam(policy_net.parameters(), lr=policy_lr)
+    policynet_optim.load_state_dict(checkpoint["policynet_optim"])
+    valuenet_optim = optim.Adam(value_net.parameters(), lr=valuenet_lr)
+    valuenet_optim.load_state_dict(checkpoint["valuenet_optim"])
+
+    checkpoint.pop("policy_net")
+    checkpoint.pop("value_net")
+    checkpoint.pop("policynet_optim")
+    checkpoint.pop("valuenet_optim")
+    checkpoint.pop("i_epoch")
+    checkpoint.pop("policy_lr")
+    checkpoint.pop("valuenet_lr")
+
+    return policy_net, value_net, policynet_optim, valuenet_optim, checkpoint
+
+
+
+
+# Load command line arguments
+
+if len(sys.argv) < 2:
+    print("Please specify a config file")
+    sys.exit(1)
+
+
+config = json.load(open(sys.argv[1]))
+
 
 
 #######################  Parameters  ##############################
 
 # Environment parameter
-env_name = "LunarLanderContinuous-v2"
-is_unwrapped = False
+env_name = config['env_name']
+is_unwrapped = config['is_unwrapped']
 
 # Model hyperparameters
-input_size = 8      # Size of state
-output_size = 2     # Number of discrete actions
-layer_sizes = {
-                "encoding": [input_size, 32, 64],
-                "mean": [64, 32, output_size],
-                "std": [64, 32, output_size]
-              }        # The MLP network architecture
-action_lim = 1.
+input_size = config['input_size']      # Size of state
+output_size = config['output_size']     # Number of discrete actions
+layer_sizes = config['layer_sizes']         # The MLP network architecture
 
-ckpt_dir = "simplePG_Adam_%s_obs_checkpoints/" % (env_name)
-save_ckpt_interval = 10
+ckpt_dir = config['ckpt_dir']
+save_ckpt_interval = config['save_ckpt_interval']
 
 # Memory parameter
-capacity = 33      # How many trajectories to store
+capacity = config['capacity']     # How many trajectories to store
 
 # Training parameters
 # num_episodes = 1000
-i_epoch = 0      # This would determine which checkpoint to load, if the checkpoint exists
-batch_size = 32
-policy_lr = 0.0003
-valuenet_lr = 0.001
+i_epoch = config['i_epoch']      # This would determine which checkpoint to load, if the checkpoint exists
+batch_size = config['batch_size']
+policy_lr = config['policy_lr']
+valuenet_lr = config['valuenet_lr']
 
-num_vn_iter = 10    # Number of iterations to train value net per epoch
+num_vn_iter = config['num_vn_iter']    # Number of iterations to train value net per epoch
 
-GAMMA = 0.98
-LAMBDA = 0.96
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 200
+GAMMA = config['GAMMA']
+LAMBDA = config['LAMBDA']
+EPS_START = config['EPS_START']
+EPS_END = config['EPS_END']
+EPS_DECAY = config['EPS_DECAY']
 
 # Rendering and recording options
-render = True
-plot = True
+render = config['render']
+plot = config['plot']
 
-render_each_episode = False     # Whether to render each episode
+render_each_episode = config['render_each_episode']     # Whether to render each episode
                                 #   If set to true, then each episode the agent ever endure will be rendered
                                 #   Otherwise, only each episode at the start of each epoch will be rendered
                                 #   Note: each epoch has exactly 1 model update and batch_size episodes
@@ -62,7 +131,7 @@ render_each_episode = False     # Whether to render each episode
                                     #   If set to true, then each episode the agent ever endure will be recorded
                                     #   Otherwise, only each episode at the start of each epoch will be recorded
 
-num_avg_epoch = 5       # The number of epochs to take for calculating average stats
+num_avg_epoch = config['num_avg_epoch']       # The number of epochs to take for calculating average stats
 
 ###################################################################
 
@@ -81,7 +150,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("Current usable device is: ", device)
 
 # Create the model
-policy_net = PolicyNet(layer_sizes, action_lim).to(device)      # Policy network
+policy_net = PolicyNet(layer_sizes).to(device)      # Policy network
 value_net = ValueNet(input_size).to(device)                     # Value network
 
 # Set up memory
@@ -116,7 +185,7 @@ while True:
     # Need to specify the i_episode of the checkpoint intended to load
     if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
         policy_net, value_net, policynet_optimizer, valuenet_optimizer, training_info = \
-            load_checkpoint(ckpt_dir, i_epoch, layer_sizes, input_size, action_lim, device=device)
+            load_checkpoint(ckpt_dir, i_epoch, layer_sizes, input_size, device=device)
 
     # To record episode stats
     episode_durations = []
@@ -145,7 +214,7 @@ while True:
             log_prob = log_prob.squeeze()
 
             # Interact with the environment
-            next_state, reward, done, _ = env.step(action.to('cpu').numpy())
+            next_state, reward, done, _ = env.step(action.item())
             running_reward += reward
 
             # Estimate the value of the next state
