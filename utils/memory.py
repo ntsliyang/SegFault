@@ -139,7 +139,7 @@ class Memory(object):
         n = rews_cat.shape[0]
         rtg_all = torch.zeros(n, device=self.device)
         for i in reversed(range(n)):
-            rtg_all[i] = rews_cat[i] + (self.gamma * rews_cat[i+1] if i + 1 < n else 0)
+            rtg_all[i] = rews_cat[i] + (self.gamma * rtg_all[i+1] if i + 1 < n else 0)
 
         start_idx = 0
         for i in reversed(range(batch_size)):
@@ -163,7 +163,7 @@ class Memory(object):
             n = traj.shape[0]
             rtg = torch.zeros(n, device=self.device)
             for j in reversed(range(n)):
-                rtg[j] = traj[j] + (self.gamma * traj[j+1] if j + 1 < n else 0)
+                rtg[j] = traj[j] + (self.gamma * rtg[j+1] if j + 1 < n else 0)
             rtg_list.append(rtg)
 
         return rtg_list

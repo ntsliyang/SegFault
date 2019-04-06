@@ -154,7 +154,7 @@ policy_net = PolicyNet(layer_sizes).to(device)      # Policy network
 value_net = ValueNet(input_size).to(device)                     # Value network
 
 # Set up memory
-memory = Memory(capacity, device)
+memory = Memory(capacity, GAMMA, LAMBDA, device)
 
 # Set up optimizer
 policynet_optimizer = optim.Adam(policy_net.parameters(), lr=policy_lr)
