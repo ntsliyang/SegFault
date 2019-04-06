@@ -8,12 +8,14 @@ class Memory(object):
              intrinsic_value_estimate, extrinsic_value_estimate)
     """
 
-    def __init__(self, capacity=100, device='cpu'):
+    def __init__(self, capacity=100,gamma=0.98, lam=0.96, device='cpu'):
         """
         :param capacity: The maximum number of trajectories to keep.
         """
         self.device = device
         self.capacity = capacity
+        self.gamma = gamma
+        self.lam = lam
         self.memory = {
             'states': [],
             'actions': [],
@@ -133,12 +135,18 @@ class Memory(object):
 
         rtg_list = []
         rews_cat = torch.cat(self.memory['in_rews'][-batch_size:], dim=0)
-        rtg_all = [torch.sum(rews_cat[i:]) for i in range(rews_cat.shape[0])]
+
+        n = rews_cat.shape[0]
+        rtg_all = torch.zeros(n, device=self.device)
+        for i in reversed(range(n)):
+            rtg_all[i] = rews_cat[i] + (self.gamma * rews_cat[i+1] if i + 1 < n else 0)
+
         start_idx = 0
         for i in reversed(range(batch_size)):
             length = self.memory['in_rews'][-(i+1)].shape[0]
-            rtg_list.append(torch.tensor(rtg_all[start_idx : length]), device=self.device)
+            rtg_list.append(rtg_all[start_idx : length])
             start_idx += length
+
         return rtg_list
 
     def extrinsic_rtg(self, batch_size):
@@ -152,8 +160,12 @@ class Memory(object):
         rtg_list = []
         for i in reversed(range(batch_size)):
             traj = self.memory['ex_rews'][-(i+1)]
-            rtg_traj = torch.tensor([torch.sum(traj[j:]) for j in range(traj.shape[0])], device=self.device)
-            rtg_list.append(rtg_traj)
+            n = traj.shape[0]
+            rtg = torch.zeros(n, device=self.device)
+            for j in reversed(range(n)):
+                rtg[j] = traj[j] + (self.gamma * traj[j+1] if j + 1 < n else 0)
+            rtg_list.append(rtg)
+
         return rtg_list
 
     def act_log_prob(self, batch_size):
@@ -184,7 +196,7 @@ class Memory(object):
 
         return self.memory['ex_val_est'][-batch_size:]
 
-    def intrinsic_gae(self, batch_size, gamma=0.98, lam=0.96):
+    def intrinsic_gae(self, batch_size):
         """
             Compute GAE for intrinsic rewards. This is computed without end-of-episode reward cut off.
         :param batch_size:
@@ -208,9 +220,9 @@ class Memory(object):
 
         assert rews_cat.shape[0] == val_cat.shape[0] - 1, "the length of concatenated rewards is not 1 less than the concatenated value estimates."
 
-        delta = rews_cat + gamma * val_cat[1:] - val_cat[:-1]
+        delta = rews_cat + self.gamma * val_cat[1:] - val_cat[:-1]
 
-        weights = torch.tensor([(gamma * lam) ** i for i in range(delta.shape[0])], device=self.device)
+        weights = torch.tensor([(self.gamma * self.lam) ** i for i in range(delta.shape[0])], device=self.device)
 
         weighted_delta = delta * weights
 
@@ -218,7 +230,7 @@ class Memory(object):
 
         return gae
 
-    def extrinsic_gae(self, batch_size, gamma=0.98, lam=0.96):
+    def extrinsic_gae(self, batch_size):
         """
             Compute GAE for extrinsic rewards. This is computed with end-of-episode reward cut off.
         :param batch_size:
@@ -237,9 +249,9 @@ class Memory(object):
 
             assert rews.shape[0] == vals.shape[0] - 1, "the length of rewards is not 1 less than the value estimates."
 
-            delta = rews + gamma * vals[1:] - vals[:-1]
+            delta = rews + self.gamma * vals[1:] - vals[:-1]
 
-            weights = torch.tensor([(gamma * lam) ** i for i in range(delta.shape[0])], device=self.device)
+            weights = torch.tensor([(self.gamma * self.lam) ** i for i in range(delta.shape[0])], device=self.device)
 
             weighted_delta = delta * weights
 
