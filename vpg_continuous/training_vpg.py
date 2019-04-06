@@ -22,7 +22,7 @@ is_unwrapped = False
 input_size = 8      # Size of state
 output_size = 2     # Number of discrete actions
 layer_sizes = {
-                "encoding": [input_size, 32, 64, 64],
+                "encoding": [input_size, 32, 64],
                 "mean": [64, 32, output_size],
                 "std": [64, 32, output_size]
               }        # The MLP network architecture
@@ -38,7 +38,11 @@ capacity = 33      # How many trajectories to store
 # num_episodes = 1000
 i_epoch = 0      # This would determine which checkpoint to load, if the checkpoint exists
 batch_size = 32
-learning_rate = 0.0003
+policy_lr = 0.0003
+valuenet_lr = 0.001
+
+num_vn_iter = 10    # Number of iterations to train value net per epoch
+
 GAMMA = 0.98
 LAMBDA = 0.96
 EPS_START = 0.9
@@ -84,9 +88,8 @@ value_net = ValueNet(input_size).to(device)                     # Value network
 memory = Memory(capacity, device)
 
 # Set up optimizer
-policynet_optimizer = optim.Adam(policy_net.parameters())
-valuenet_optimizer = optim.Adam(value_net.parameters())
-# optimizer = optim.SGD(policy_net.parameters(), lr=learning_rate)
+policynet_optimizer = optim.Adam(policy_net.parameters(), lr=policy_lr)
+valuenet_optimizer = optim.Adam(value_net.parameters(), lr=valuenet_lr)
 
 ###################################################################
 # Start training
@@ -181,12 +184,14 @@ while True:
     epoch_rewards.append(sum(episode_rewards) / batch_size)
 
     # Optimize the PolicyNet for one step after collecting enough trajectories
-    policy_net.optimize_model(memory, batch_size, policynet_optimizer)
+    policy_net.optimize_model(memory, batch_size, policynet_optimizer, device=device)
 
     # Obtain batch extrinsic value estimates and rewards-to-go and fit value estimate network by regression on MSE
+    #   for multiple steps
     val_est = memory.extrinsic_val_est(batch_size)
     ex_rtg = memory.extrinsic_rtg(batch_size)
-    value_net_mse = value_net.optimize_model(val_est, ex_rtg, valuenet_optimizer)
+    for i in range(num_vn_iter):
+        value_net_mse = value_net.optimize_model(val_est, ex_rtg, valuenet_optimizer)
 
     # Reset Flags
     if not(render_each_episode):
@@ -217,6 +222,6 @@ while True:
 
     # Every save_ckpt_interval, save a checkpoint according to current i_episode.
     if i_epoch % save_ckpt_interval == 0:
-        save_checkpoint(ckpt_dir, policy_net, value_net, policynet_optimizer, valuenet_optimizer, i_epoch, learning_rate=learning_rate,
-                        **training_info)
+        save_checkpoint(ckpt_dir, policy_net, value_net, policynet_optimizer, valuenet_optimizer, i_epoch,
+                        policy_lr=policy_lr, valuenet_lr=valuenet_lr, **training_info)
 

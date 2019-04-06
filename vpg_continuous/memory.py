@@ -156,6 +156,14 @@ class Memory(object):
             rtg_list.append(rtg_traj)
         return rtg_list
 
+    def act_log_prob(self, batch_size):
+        """
+            Return a batch of action log probabilities
+        :param batch_size:
+        :return:
+        """
+        return self.memory['act_log_prob'][-batch_size:]
+
     def intrinsic_val_est(self, batch_size):
         """
 

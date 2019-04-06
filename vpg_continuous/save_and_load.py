@@ -7,13 +7,14 @@ from model import PolicyNet, ValueNet
 # Utils for saving and loading checkpoints
 
 def save_checkpoint(file_dir, policy_net, value_net, policynet_optim, valuenet_optim,
-                    i_epoch, learning_rate=0.001, **kwargs):
+                    i_epoch, policy_lr, valuenet_lr, **kwargs):
     save_dict = {"policy_net": policy_net.state_dict(),
                  "value_net": value_net.state_dict(),
                  "policynet_optim": policynet_optim.state_dict(),
                  "valuenet_optim": valuenet_optim.state_dict(),
                  "i_epoch": i_epoch,
-                 "learning_rate": learning_rate
+                 "policy_lr": policy_lr,
+                 "valuenet_lr": valuenet_lr
                  }
     # Save optional contents
     save_dict.update(kwargs)
@@ -44,11 +45,12 @@ def load_checkpoint(file_dir, i_epoch, layer_sizes, input_size, action_lim, devi
     value_net.load_state_dict(checkpoint["value_net"])
     value_net.train()
 
-    learning_rate = checkpoint["learning_rate"]
+    policy_lr = checkpoint["policy_lr"]
+    valuenet_lr = checkpoint["valuenet_lr"]
 
-    policynet_optim = optim.Adam(policy_net.parameters())
+    policynet_optim = optim.Adam(policy_net.parameters(), lr=policy_lr)
     policynet_optim.load_state_dict(checkpoint["policynet_optim"])
-    valuenet_optim = optim.Adam(value_net.parameters())
+    valuenet_optim = optim.Adam(value_net.parameters(), lr=valuenet_lr)
     valuenet_optim.load_state_dict(checkpoint["valuenet_optim"])
 
     checkpoint.pop("policy_net")
@@ -56,6 +58,7 @@ def load_checkpoint(file_dir, i_epoch, layer_sizes, input_size, action_lim, devi
     checkpoint.pop("policynet_optim")
     checkpoint.pop("valuenet_optim")
     checkpoint.pop("i_epoch")
-    checkpoint.pop("learning_rate")
+    checkpoint.pop("policy_lr")
+    checkpoint.pop("valuenet_lr")
 
     return policy_net, value_net, policynet_optim, valuenet_optim, checkpoint
