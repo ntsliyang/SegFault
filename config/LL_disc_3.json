@@ -1,0 +1,33 @@
+{
+  "env_name": "LunarLander-v2",
+  "is_unwrapped": false,
+
+  "input_size": 8,
+  "output_size": 4,
+  "layer_sizes": [8, 128, 128, 128, 4],
+
+  "ckpt_dir": "baseline_vpg_disc_rtg_ERC/",
+  "save_ckpt_interval": 10,
+
+  "capacity": 33,
+
+  "i_epoch": 0,
+  "batch_size": 32,
+  "policy_lr": 0.0003,
+  "valuenet_lr": 0.001,
+
+  "num_vn_iter": 10,
+
+  "GAMMA": 0.999,
+  "LAMBDA": 0.96,
+  "EPS_START": 0.9,
+  "EPS_END": 0.05,
+  "EPS_DECAY": 200,
+
+  "render": true,
+  "plot": true,
+
+  "render_each_episode": false,
+
+  "num_avg_epoch": 5
+}

@@ -1,3 +1,9 @@
+"""
+    Baseline model
+        - Vanilla Policy Gradient update with reward-to-go.
+        - Normal, discrete environment.
+"""
+
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
