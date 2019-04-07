@@ -119,17 +119,15 @@ class ValueNet(nn.Module):
         super(ValueNet, self).__init__()
 
         self.FC1 = nn.Linear(input_size, 64)
-        #self.FC2 = nn.Linear(32, 64)
-        self.FC3 = nn.Linear(64, 64)
-        self.FC4 = nn.Linear(64, 1)
+        self.FC2 = nn.Linear(64, 64)
+        self.FC3 = nn.Linear(64, 1)
 
         self.Elu = nn.ELU()
 
     def forward(self, x):
         x = self.Elu(self.FC1(x))
-        #x = self.Elu(self.FC2(x))
-        x = self.Elu(self.FC3(x))
-        x = self.FC4(x)
+        x = self.Elu(self.FC2(x))
+        x = self.FC3(x)
 
         return x
 
