@@ -81,7 +81,7 @@ class LPLGraph(object):
         :param state:
         :return:
         """
-        if type(state) is int:
+        if type(state) is not str:
             state_node = "state_" + str(state)
         else:
             state_node = state
@@ -96,7 +96,7 @@ class LPLGraph(object):
         :param action:
         :return:
         """
-        if type(action) is int:
+        if type(action) is not str:
             action_node = state_node + "_action_" + str(action)
         else:
             action_node = action
@@ -231,7 +231,7 @@ class LPLGraph(object):
 
         # Iterate through all definite causes
         for action_node in self.G.predecessors(state_node):
-            if self.G[action_node][state_node]["type"] == "definite":
+            if ("action_choice" not in action_node) and self.G[action_node][state_node]["type"] == "definite":
                 # Particle value of the action in the specified layer
                 v = self.G[action_node][state_node]["V_a"][layer]
                 # Cumulative product term in the noise-or formula
@@ -322,8 +322,8 @@ class LPLGraph(object):
 
                 # For every other (observed) potential cause (s, a) of s_t+1, update with observed = 0
                 for potential_action_node in list(self.G.predecessors(next_state_node)):
-                    if potential_action_node != action_node and \
-                            self.G[potential_action_node][next_state_node]["type"] != "none":
+                    if ("action_choice" not in potential_action_node) and (potential_action_node != action_node) and \
+                            (self.G[potential_action_node][next_state_node]["type"] != "none"):
                         self._update_causal_strength(i, potential_action_node, next_state_node, next_state_expected_val)
 
                 # For every other (observed) potential outcome s of (s_t, a_t), update with observed = 0
@@ -337,10 +337,10 @@ class LPLGraph(object):
 
         # Update state nodes' beta distribution hyperparameters
         # Obtain action choice and action choice node
-        if type(action) is int:
-            action_choice = action
-        else:
+        if type(action) is str:
             action_choice = int(action_node[-1])
+        else:
+            action_choice = action
         action_choice_node = prev_state_node + "_action_choice"
 
         # If the edge (action -> next_state) does not exist, create one
@@ -394,8 +394,10 @@ class LPLGraph(object):
     def action_confidence(self, state, action, next_state=None):
         """
             Calculate the variance of the particles (i.e. the level of not being confident) of the specified action
-            if next_state is given, calculate the variance for that specific causal link
-            otherwise, calculate the average variance for all potential outcomes of taking this action
+                if next_state is given, calculate the variance for that specific causal link
+            Otherwise, calculate the average variance for all potential outcomes of taking this action
+            If the specified action has no observed potential outcomes, i.e., do not have outgoing causal link, then
+                return a variance of particle_init_std ** 2
 
         :param state:
         :param action:
@@ -409,7 +411,10 @@ class LPLGraph(object):
             return var
         else:
             var_list = [np.var(self.G[action_node][s]["V_a"]) for s in self.G.successors(action_node)]
-            var_mean = np.mean(var_list)
+            if len(var_list) > 0:
+                var_mean = np.mean(var_list)
+            else:
+                var_mean = self._particle_init_std ** 2
             return var_mean
 
     def causal_strength(self, state, action, next_state):
