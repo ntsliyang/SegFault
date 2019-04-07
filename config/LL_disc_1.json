@@ -18,7 +18,7 @@
 
   "num_vn_iter": 10,
 
-  "GAMMA": 0.98,
+  "GAMMA": 0.999,
   "LAMBDA": 0.96,
   "EPS_START": 0.9,
   "EPS_END": 0.05,

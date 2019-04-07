@@ -8,7 +8,7 @@ class Memory(object):
              intrinsic_value_estimate, extrinsic_value_estimate)
     """
 
-    def __init__(self, capacity=100,gamma=0.98, lam=0.96, device='cpu'):
+    def __init__(self, capacity=100, gamma=0.98, lam=0.96, device='cpu'):
         """
         :param capacity: The maximum number of trajectories to keep.
         """
@@ -144,7 +144,7 @@ class Memory(object):
         start_idx = 0
         for i in reversed(range(batch_size)):
             length = self.memory['in_rews'][-(i+1)].shape[0]
-            rtg_list.append(rtg_all[start_idx : length])
+            rtg_list.append(rtg_all[start_idx : start_idx + length])
             start_idx += length
 
         return rtg_list
