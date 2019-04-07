@@ -4,7 +4,7 @@
 
   "input_size": 8,
   "output_size": 4,
-  "layer_sizes": [8, 64, 64, 4],
+  "layer_sizes": [8, 128, 128, 128, 4],
 
   "ckpt_dir": "VPG_LunarLander-v2_obs_checkpoints/",
   "save_ckpt_interval": 10,

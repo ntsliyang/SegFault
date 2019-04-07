@@ -70,40 +70,40 @@ class PolicyNet(nn.Module):
         :param optimizer:
         :return:
         """
-        # # Using Geeralized Advantage Estimates to compute policy gradients
-        # act_log_prob = memory.act_log_prob(batch_size)
-
-        # in_gae = memory.intrinsic_gae(batch_size)
-        # ex_gae = memory.extrinsic_gae(batch_size)
-
-        # # Concatenate act_log_prob and ex_gae. Note that we are missing one value at each episode, so we compensate by
-        # #   inserting a value 0.
-        # act_log_prob_list = []
-        # ex_gae_list = []
-        # for i in range(batch_size):
-        #     act_log_prob_com = torch.cat([torch.tensor([0.], device=device), act_log_prob[i]], dim=0)
-        #     ex_gae_com = torch.cat([torch.tensor([0.], device=device), ex_gae[i]], dim=0)
-        #     act_log_prob_list.append(act_log_prob_com)
-        #     ex_gae_list.append(ex_gae_com)
-        # alp_cat = torch.cat(act_log_prob_list, dim=0)
-        # ex_gae_cat = torch.cat(ex_gae_list, dim=0)
-        # # Remove the leading 0
-        # alp_cat = alp_cat[1:]
-        # ex_gae_cat = ex_gae_cat[1:]
-
-        # # Calculate policy gradient. Intrinsic GAE and extrinsic GAE are added together
-        # loss = - torch.sum(alp_cat * (ex_gae_cat + in_gae)) / torch.tensor(batch_size, device=device)
-
-
-        # Using reward-to-go to compute policy gradients
+        # Using Geeralized Advantage Estimates to compute policy gradients
         act_log_prob = memory.act_log_prob(batch_size)
-        ex_rtg = memory.extrinsic_rtg(batch_size)
-        
-        loss = 0
-        for i in range(batch_size):
-            loss += - torch.sum(act_log_prob[i] * ex_rtg[i])
-        loss /= torch.tensor(batch_size, device=device)
 
+        in_gae = memory.intrinsic_gae(batch_size)
+        ex_gae = memory.extrinsic_gae(batch_size)
+
+        # Concatenate act_log_prob and ex_gae. Note that we are missing one value at each episode, so we compensate by
+        #   inserting a value 0.
+        act_log_prob_list = []
+        ex_gae_list = []
+        for i in range(batch_size):
+            act_log_prob_com = torch.cat([torch.tensor([0.], device=device), act_log_prob[i]], dim=0)
+            ex_gae_com = torch.cat([torch.tensor([0.], device=device), ex_gae[i]], dim=0)
+            act_log_prob_list.append(act_log_prob_com)
+            ex_gae_list.append(ex_gae_com)
+        alp_cat = torch.cat(act_log_prob_list, dim=0)
+        ex_gae_cat = torch.cat(ex_gae_list, dim=0)
+        # Remove the leading 0
+        alp_cat = alp_cat[1:]
+        ex_gae_cat = ex_gae_cat[1:]
+
+        # Calculate policy gradient. Intrinsic GAE and extrinsic GAE are added together
+        loss = - torch.sum(alp_cat * (ex_gae_cat + in_gae)) / torch.tensor(batch_size, device=device)
+
+
+        # # Using reward-to-go to compute policy gradients
+        # act_log_prob = memory.act_log_prob(batch_size)
+        # ex_rtg = memory.extrinsic_rtg(batch_size)
+        #
+        # loss = 0
+        # for i in range(batch_size):
+        #     loss += - torch.sum(act_log_prob[i] * ex_rtg[i])
+        # loss /= torch.tensor(batch_size, device=device)
+        #
         optimizer.zero_grad()
         loss.backward()
         for param in self.parameters():

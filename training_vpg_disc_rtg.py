@@ -157,8 +157,8 @@ value_net = ValueNet(input_size).to(device)                     # Value network
 memory = Memory(capacity, GAMMA, LAMBDA, device)
 
 # Set up optimizer
-policynet_optimizer = optim.Adam(policy_net.parameters(), lr=policy_lr)
-valuenet_optimizer = optim.Adam(value_net.parameters(), lr=valuenet_lr)
+policynet_optimizer = optim.Adam(policy_net.parameters())
+valuenet_optimizer = optim.Adam(value_net.parameters())
 
 ###################################################################
 # Start training
@@ -206,8 +206,9 @@ while True:
         memory.set_initial_state(current_state, initial_ex_val_est=ex_val)
 
         for t in count():
-            # Make sure that policy net is in training mode
+            # Make sure that policy net and value net is in training mode
             policy_net.train()
+            value_net.train()
 
             # Sample an action given the current state
             action, log_prob = policy_net(torch.tensor([current_state], device=device))
@@ -225,20 +226,17 @@ while True:
                 env.render()
 
             # Record transition in memory
-            memory.add_transition(action, log_prob, next_state,
-                                  extrinsic_reward=reward, extrinsic_value_estimate=value)
+            memory.add_transition(action, log_prob, next_state, extrinsic_reward=reward, extrinsic_value_estimate=value)
+
+            # Update current state
+            current_state = next_state
 
             if done:
                 # Load and print episode stats after each episode ends
                 episode_durations.append(t + 1)
-                episode_rewards.append(sum(memory.trajectory_extrinsic_return(1)))
+                episode_rewards.append(running_reward)
                 if running_reward > training_info["max reward achieved"]:
                     training_info["max reward achieved"] = running_reward
-
-                # Check if the problem is solved
-                #  CartPole standard: average reward for the past 100 episode above 195
-                # if training_info["past 100 episodes mean reward"] > 195:
-                #     print("\n\n\t Problem Solved !!!\n\n\n")
 
                 # Decide whether to render next episode
                 if not(render_each_episode):
