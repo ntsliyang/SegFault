@@ -35,8 +35,8 @@ class SimHash(object):
         # Round to integer
         y = (y > 0).astype(np.int0)
         # Return output
-        out = np.asarray([y[i] * (2 ** i) for i in range(len(y))])
+        out = np.asarray([y[-(i + 1)] * (2 ** i) for i in range(len(y))])
         if base_ten:
             return np.sum(out)
         else:
-            return out
+            return y
