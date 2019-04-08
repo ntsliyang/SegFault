@@ -168,6 +168,14 @@ class Memory(object):
 
         return rtg_list
 
+    def states(self, batch_size):
+        """
+            Return a batch of states
+        :param batch_size:
+        :return:
+        """
+        return self.memory['states'][-batch_size:]
+
     def act_log_prob(self, batch_size):
         """
             Return a batch of action log probabilities
