@@ -6,7 +6,7 @@
   "output_size": 4,
   "layer_sizes": [8, 128, 128, 128, 4],
 
-  "ckpt_dir": "baseline_vpg_disc_rtg_ERC/",
+  "ckpt_dir": "baseline_ppo_disc/",
   "save_ckpt_interval": 10,
 
   "capacity": 33,

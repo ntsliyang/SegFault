@@ -185,6 +185,8 @@ epoch_rewards = []
 
 while True:
 
+    print("\n------------- Epoch %d -------------" % (i_epoch + 1))
+
     finished_rendering_this_epoch = False
 
     # Every save_ckpt_interval, Check if there is any checkpoint.
@@ -203,6 +205,8 @@ while True:
     # Collect trajectories
 
     for i_episode in range(batch_size):
+
+        print("\n\tCollecting %dth episode" % (i_episode + 1))
 
         # Keep track of the running reward
         running_reward = 0
@@ -280,19 +284,20 @@ while True:
 
     loss = 0
     for i in range(num_updates_per_epoch):
+        print("\n\tUpdate Policy Net: %d" % (i + 1))
         for j in range(batch_size):
             traj_loss = 0
-            for k in range(len(ex_gae[j])):
-                new_action, new_act_log_prob = policy_net(torch.tensor([states[j][k]], device=device))
-                ratio = torch.exp(new_act_log_prob - old_act_log_prob)
-                surr1 = ratio * ex_gae[j][k]
-                surr2 = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * ex_gae[j][k]
-                traj_loss += - torch.min(surr1, surr2)
-            loss += traj_loss / torch.tensor(len(ex_gae[j]), device=device, dtype=torch.float32)
+
+            _, new_act_log_prob = policy_candiate(states[j][:-1])       # Ignore last state
+            ratio = torch.exp(new_act_log_prob - old_act_log_prob[j])
+            surr1 = ratio * ex_gae[j]
+            surr2 = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * ex_gae[j]
+            loss += - torch.mean(torch.min(surr1, surr2))
+
         loss /= torch.tensor(batch_size, device=device, dtype=torch.float32)
 
         policy_candidate_optimizer.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
         policy_candidate_optimizer.step()
 
     policy_net.load_state_dict(policy_candiate.state_dict())
@@ -302,11 +307,14 @@ while True:
     val_est = memory.extrinsic_val_est(batch_size)
     ex_rtg = memory.extrinsic_rtg(batch_size)
     for i in range(num_vn_iter):
+        print("\n\tUpdate Value Net: %d" % (i + 1))
         value_net_mse = value_net.optimize_model(val_est, ex_rtg, valuenet_optimizer)
 
     # Reset Flags
     if not(render_each_episode):
         finished_rendering_this_epoch = False
+
+    ###################################################################
 
     # Record stats
     training_info["epoch mean durations"].append(epoch_durations[-1])
