@@ -17,6 +17,7 @@ from utils.utils import plot_durations
 from utils.memory import Memory
 import json
 import sys
+import copy
 
 
 # Utils for saving and loading checkpoints
@@ -161,6 +162,7 @@ value_net = ValueNet(input_size).to(device)         # Value network
 memory = Memory(capacity, GAMMA, LAMBDA, device)
 
 # Set up optimizer
+policynet_optimizer = optim.Adam(policy_net.parameters())
 valuenet_optimizer = optim.Adam(value_net.parameters())
 
 ###################################################################
@@ -259,13 +261,14 @@ while True:
 
 
     # Optimize the PolicyNet for a given number of steps
-    policy_candiate = PolicyNet(layer_sizes).to(device)
+    # policy_candiate = PolicyNet(layer_sizes).to(device)
+    policy_candidate = copy.deepcopy(policy_net).to(device)
 
     # copy weights from policy_net to the policy_candidate
-    policy_candiate.load_state_dict(policy_net.state_dict())
+    # policy_candidate.load_state_dict(policy_net.state_dict())
 
     # initialize the optimizer for policy_net
-    policy_candidate_optimizer = optim.Adam(policy_candiate.parameters())
+    policy_candidate_optimizer = optim.Adam(policy_candidate.parameters())
 
     ex_gae = memory.extrinsic_gae(batch_size)
     # ex_gae = memory.extrinsic_discounted_rtg(batch_size)
@@ -279,11 +282,12 @@ while True:
         print("\n\tUpdate Policy Net: %d" % (i + 1))
         for j in range(batch_size):
 
-            _, new_act_log_prob = policy_candiate(states[j][:-1])       # Ignore last state
+            _, new_act_log_prob = policy_candidate(states[j][:-1])       # Ignore last state
             ratio = torch.exp(new_act_log_prob - old_act_log_prob[j])
             surr1 = ratio * ex_gae[j]
             surr2 = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * ex_gae[j]
-            loss += - torch.mean(torch.min(surr1, surr2))
+            # loss += - torch.mean(torch.min(surr1, surr2))
+            loss += - torch.sum(torch.min(surr1, surr2))
 
             # traj_loss = 0
             # for k in range(len(ex_gae[j])):
@@ -300,7 +304,17 @@ while True:
         loss.backward(retain_graph=True)
         policy_candidate_optimizer.step()
 
-    policy_net.load_state_dict(policy_candiate.state_dict())
+    # policy_net.load_state_dict(policy_candiate.state_dict())
+    policy_net = copy.deepcopy(policy_candidate).to(device)
+
+    # # Vanilla Policy Gradient
+    # for gae, act_log_prob in zip(ex_gae, old_act_log_prob):
+    #     loss += - torch.sum(gae * act_log_prob)
+    # loss /= torch.tensor(batch_size, device=device, dtype=torch.float32)
+    #
+    # policynet_optimizer.zero_grad()
+    # loss.backward()
+    # policynet_optimizer.step()
 
 
     # Optimize value net for a given number of steps
