@@ -19,6 +19,7 @@ from utils.memory import Memory
 import json
 import sys
 import copy
+from tqdm import tqdm, tqdm_gui
 
 
 # Utils for saving and loading checkpoints
@@ -205,9 +206,9 @@ while True:
     ###################################################################
     # Collect trajectories
 
-    for i_episode in range(batch_size):
+    print("\n\n\tCollecting %d episodes: " % (batch_size))
 
-        print("\n\tCollecting %dth episode" % (i_episode + 1))
+    for i_episode in tqdm(range(batch_size)):       # Use tqdm to show progress bar
 
         # Keep track of the running reward
         running_reward = 0
@@ -278,8 +279,11 @@ while True:
 
     # Proximal Policy Optimization
     loss = 0
-    for i in range(num_updates_per_epoch):
-        print("\n\tUpdate Policy Net: %d" % (i + 1))
+
+    print("\n\n\tUpdate Policy Net for %d steps:" % (num_updates_per_epoch))
+
+    for i in tqdm(range(num_updates_per_epoch)):        # Use tqdm to show progress bar
+
         num = 0
         for j in range(batch_size):
             # Calculate the log probabilities of the actions stored in memory from the distribution parameterized by the
@@ -334,8 +338,10 @@ while True:
     value_net.train()
     ex_rtg = memory.extrinsic_discounted_rtg(batch_size)      # Use undiscounted reward-to-go to fit the value net
     val_est = []
-    for i in range(num_vn_iter):
-        print("\n\tUpdate Value Net: %d" % (i + 1))
+
+    print("\n\n\tUpdate Value Net for %d steps" % (num_vn_iter))
+
+    for i in tqdm(range(num_vn_iter)):          # Use tqdm to show progress bar
         for j in range(batch_size):
             val_est_traj = value_net(states[j]).squeeze()
             val_est.append(val_est_traj)
