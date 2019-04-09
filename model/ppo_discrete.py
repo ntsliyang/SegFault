@@ -16,7 +16,13 @@ class PolicyNet(nn.Module):
 
         self.Elu = nn.ELU()
 
-    def forward(self, x):
+    def forward(self, x, action_query=None):
+        """
+            Forward propogation
+        :param x: Input
+        :param action_query: (Optional) Specify an action to query if want the log probability of this specific action
+        :return:
+        """
         # Forward propagation
         for layer in self.layers[:-1]:
             x = self.Elu(layer(x))
@@ -33,9 +39,25 @@ class PolicyNet(nn.Module):
             #   or compute the action log-probabilities
             m = Categorical(logits=logits)
 
-            action = m.sample()
-            log_prob = m.log_prob(action)
-            return action, log_prob
+            # If action_query is None, then we are free to sample a new action from the distribution and calculate the
+            #   the corresponding log probability
+            if action_query is None:
+                action = m.sample()
+                log_prob = m.log_prob(action)
+                return action, log_prob
+
+            # Otherwise, we calculate the log probabilities of the specified actions as if they were sampled from this
+            #   distribution, and return these log probabilities only.
+            else:
+                # Sample a sample action to check the correctness of size
+                sample_action = m.sample()
+                assert action_query.shape == sample_action.shape, \
+                    "action_query has the wrong shape. It now has shape {} but should have shape {}"\
+                        .format(tuple(action_query.shape), tuple(sample_action.shape))
+
+                # Calculate the log probabilities of the specified action and return
+                log_prob = m.log_prob(action_query)
+                return log_prob
 
 class ValueNet(nn.Module):
     """

@@ -196,6 +196,14 @@ class Memory(object):
         """
         return self.memory['states'][-batch_size:]
 
+    def actions(self, batch_size):
+        """
+            Return a batch of actions
+        :param batch_size:
+        :return:
+        """
+        return self.memory['actions'][-batch_size:]
+
     def act_log_prob(self, batch_size):
         """
             Return a batch of action log probabilities

@@ -9,6 +9,7 @@ matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
 import gym
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from itertools import count
 import os
@@ -190,9 +191,9 @@ while True:
     # Every save_ckpt_interval, Check if there is any checkpoint.
     # If there is, load checkpoint and continue training
     # Need to specify the i_episode of the checkpoint intended to load
-    # if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
-    #     policy_net, value_net, valuenet_optimizer, training_info = \
-    #         load_checkpoint(ckpt_dir, i_epoch, layer_sizes, input_size, device=device)
+    if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
+        policy_net, value_net, valuenet_optimizer, training_info = \
+            load_checkpoint(ckpt_dir, i_epoch, layer_sizes, input_size, device=device)
 
     # To record episode stats
     episode_durations = []
@@ -271,23 +272,32 @@ while True:
     policy_candidate_optimizer = optim.Adam(policy_candidate.parameters())
 
     ex_gae = memory.extrinsic_gae(batch_size)
-    # ex_gae = memory.extrinsic_discounted_rtg(batch_size)
-    # ex_gae = [(gae - torch.mean(gae)) / torch.std(gae) for gae in ex_gae]     # Normalize
     old_act_log_prob = memory.act_log_prob(batch_size)
     states = memory.states(batch_size)
+    actions = memory.actions(batch_size)
 
     # Proximal Policy Optimization
     loss = 0
     for i in range(num_updates_per_epoch):
         print("\n\tUpdate Policy Net: %d" % (i + 1))
+        num = 0
         for j in range(batch_size):
+            # Calculate the log probabilities of the actions stored in memory from the distribution parameterized by the
+            #   new candidate network
+            # _, new_act_log_prob = policy_candidate(states[j][:-1])       # Ignore last state
+            new_act_log_prob = policy_candidate(states[j][:-1], action_query=actions[j].squeeze())   # Ignore last state
+            ratio = torch.exp(new_act_log_prob - old_act_log_prob[j].detach())      # Detach old action log prob
 
-            _, new_act_log_prob = policy_candidate(states[j][:-1])       # Ignore last state
-            ratio = torch.exp(new_act_log_prob - old_act_log_prob[j])
+            if torch.sum(torch.abs(ratio - 1) > clip_range) == ratio.shape[0]:
+                print("\t\tFully Clipped!")
+
             surr1 = ratio * ex_gae[j]
-            surr2 = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * ex_gae[j]
+            surr2 = (((ex_gae[j] < 0.).type(torch.float32) * (1 - clip_range) +
+                      (ex_gae[j] > 0.).type(torch.float32) * (1 + clip_range))) * ex_gae[j]
+            # surr2 = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * ex_gae[j]
             # loss += - torch.mean(torch.min(surr1, surr2))
             loss += - torch.sum(torch.min(surr1, surr2))
+            num += ratio.shape[0]
 
             # traj_loss = 0
             # for k in range(len(ex_gae[j])):
@@ -298,10 +308,12 @@ while True:
             #     traj_loss += - torch.min(surr1, surr2)
             # loss += traj_loss / ex_gae[j].shape[0]
 
-        loss /= torch.tensor(batch_size, device=device, dtype=torch.float32)
+        # loss /= torch.tensor(batch_size, device=device, dtype=torch.float32)
+        loss /= torch.tensor(num, device=device, dtype=torch.float32)
 
         policy_candidate_optimizer.zero_grad()
         loss.backward(retain_graph=True)
+        nn.utils.clip_grad_norm(policy_candidate.parameters(), 1.)      # Clip gradients
         policy_candidate_optimizer.step()
 
     # policy_net.load_state_dict(policy_candiate.state_dict())
@@ -363,7 +375,7 @@ while True:
     i_epoch += 1
 
     # Every save_ckpt_interval, save a checkpoint according to current i_episode.
-    # if i_epoch % save_ckpt_interval == 0:
-    #     save_checkpoint(ckpt_dir, policy_net, value_net, valuenet_optimizer, i_epoch,
-    #                     policy_lr=policy_lr, valuenet_lr=valuenet_lr, **training_info)
+    if i_epoch % save_ckpt_interval == 0:
+        save_checkpoint(ckpt_dir, policy_net, value_net, valuenet_optimizer, i_epoch,
+                        policy_lr=policy_lr, valuenet_lr=valuenet_lr, **training_info)
 

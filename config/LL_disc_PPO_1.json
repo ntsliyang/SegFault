@@ -17,7 +17,7 @@
   "valuenet_lr": 0.001,
 
   "num_vn_iter": 32,
-  "num_updates_per_epoch": 8,
+  "num_updates_per_epoch": 32,
   "clip_range": 0.2,
 
   "GAMMA": 0.999,
