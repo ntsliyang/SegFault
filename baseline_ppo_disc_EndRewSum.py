@@ -1,7 +1,9 @@
 """
     Baseline model
-        - Proximal Policy Optimization with a value net estimating state value and update policy with GAE.
-        - Normal, discrete environment.
+        - Proximal Policy Optimization with a value net estimating state value and update policy using GAE.
+        - discrete environment.
+        - Rewards along an episode is summed up to a trajectory return. Only this trajectory return is fed to the
+            agent at the end of each episode.
 """
 
 import matplotlib
@@ -240,7 +242,13 @@ while True:
                 env.render()
 
             # Record transition in memory
-            memory.add_transition(action, log_prob, next_state, extrinsic_reward=reward, extrinsic_value_estimate=value)
+            # Only reward given at the end of the episode is fed to the agent
+            if done:
+                memory.add_transition(action, log_prob, next_state, extrinsic_reward=running_reward,
+                                      extrinsic_value_estimate=value)
+            else:
+                memory.add_transition(action, log_prob, next_state, extrinsic_reward=0.,
+                                      extrinsic_value_estimate=value)
 
             # Update current state
             current_state = next_state
