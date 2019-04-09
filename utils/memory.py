@@ -125,6 +125,7 @@ class Memory(object):
         rets = [torch.sum(self.memory['ex_rews'][-(i + 1)]) for i in reversed(range(batch_size))]
         return rets
 
+    # TODO: Add an unweighted version of intrinsic reward-to-go
     def intrinsic_rtg(self, batch_size):
         """
             Compute intrinsic reward-to-go. This is computed without end-of-episode reward cut off.
@@ -149,9 +150,9 @@ class Memory(object):
 
         return rtg_list
 
-    def extrinsic_rtg(self, batch_size):
+    def extrinsic_discounted_rtg(self, batch_size):
         """
-            Compute extrinsic reward-to-go. This is computed with end-of-episode reward cut off.
+            Compute extrinsic *discounted* reward-to-go. This is computed with end-of-episode reward cut off.
         :param batch_size: The number of latest trajectories to consider as a batch
         :return: a list of intrinsic reward-to-go for each trajectory in the batch.
         """
@@ -164,6 +165,25 @@ class Memory(object):
             rtg = torch.zeros(n, device=self.device)
             for j in reversed(range(n)):
                 rtg[j] = traj[j] + (self.gamma * rtg[j+1] if j + 1 < n else 0)
+            rtg_list.append(rtg)
+
+        return rtg_list
+
+    def extrinsic_undiscounted_rtg(self, batch_size):
+        """
+            Compute extrinsic *undiscounted* reward-to-go. This is computed with end-of-episode reward cut off.
+        :param batch_size:
+        :return:
+        """
+        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+
+        rtg_list = []
+        for i in reversed(range(batch_size)):
+            traj = self.memory['ex_rews'][-(i + 1)]
+            n = traj.shape[0]
+            rtg = torch.zeros(n, device=self.device)
+            for j in reversed(range(n)):
+                rtg[j] = traj[j] + (rtg[j + 1] if j + 1 < n else 0)
             rtg_list.append(rtg)
 
         return rtg_list
@@ -234,7 +254,7 @@ class Memory(object):
 
         weighted_delta = delta * weights
 
-        gae = torch.tensor([torch.sum(weighted_delta[i:]) for i in range(weighted_delta.shape[0])], device=self.device)
+        gae = torch.tensor([torch.sum(weighted_delta[i:]) / ((self.gamma * self.lam) ** i) for i in range(weighted_delta.shape[0])], device=self.device)
 
         return gae
 
@@ -263,7 +283,7 @@ class Memory(object):
 
             weighted_delta = delta * weights
 
-            gae = torch.tensor([torch.sum(weighted_delta[i:]) for i in range(weighted_delta.shape[0])], device=self.device)
+            gae = torch.tensor([torch.sum(weighted_delta[i:]) / ((self.gamma * self.lam) ** i) for i in range(weighted_delta.shape[0])], device=self.device)
 
             gae_list.append(gae)
 

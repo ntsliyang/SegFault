@@ -25,6 +25,7 @@ def plot_durations(episode_rewards=None, episode_loss=None, idx_range=None, mean
         ax1.set_title('Episode Rewards')
         ax1.set_xlabel('Episode')
         ax1.set_ylabel('Rewards')
+        ax1.grid()
         if idx_range is None:
             ax1.plot(durations_t.numpy())
         else:
@@ -46,6 +47,7 @@ def plot_durations(episode_rewards=None, episode_loss=None, idx_range=None, mean
         ax2.set_title('ValueNet Loss')
         ax2.set_xlabel('Episode')
         ax2.set_ylabel('Loss value')
+        ax2.grid()
         if idx_range is None:
             ax2.plot(episode_loss)
         else:

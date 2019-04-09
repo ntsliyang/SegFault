@@ -21,11 +21,10 @@ import sys
 
 # Utils for saving and loading checkpoints
 
-def save_checkpoint(file_dir, policy_net, value_net, policynet_optim, valuenet_optim,
+def save_checkpoint(file_dir, policy_net, value_net, valuenet_optim,
                     i_epoch, policy_lr, valuenet_lr, **kwargs):
     save_dict = {"policy_net": policy_net.state_dict(),
                  "value_net": value_net.state_dict(),
-                 "policynet_optim": policynet_optim.state_dict(),
                  "valuenet_optim": valuenet_optim.state_dict(),
                  "i_epoch": i_epoch,
                  "policy_lr": policy_lr,
@@ -63,20 +62,17 @@ def load_checkpoint(file_dir, i_epoch, layer_sizes, input_size, device='cuda'):
     policy_lr = checkpoint["policy_lr"]
     valuenet_lr = checkpoint["valuenet_lr"]
 
-    policynet_optim = optim.Adam(policy_net.parameters(), lr=policy_lr)
-    policynet_optim.load_state_dict(checkpoint["policynet_optim"])
     valuenet_optim = optim.Adam(value_net.parameters(), lr=valuenet_lr)
     valuenet_optim.load_state_dict(checkpoint["valuenet_optim"])
 
     checkpoint.pop("policy_net")
     checkpoint.pop("value_net")
-    checkpoint.pop("policynet_optim")
     checkpoint.pop("valuenet_optim")
     checkpoint.pop("i_epoch")
     checkpoint.pop("policy_lr")
     checkpoint.pop("valuenet_lr")
 
-    return policy_net, value_net, policynet_optim, valuenet_optim, checkpoint
+    return policy_net, value_net, valuenet_optim, checkpoint
 
 
 
@@ -185,21 +181,23 @@ epoch_rewards = []
 
 while True:
 
-    print("\n------------- Epoch %d -------------" % (i_epoch + 1))
+    # print("\n------------- Epoch %d -------------" % (i_epoch + 1))
 
     finished_rendering_this_epoch = False
 
     # Every save_ckpt_interval, Check if there is any checkpoint.
     # If there is, load checkpoint and continue training
     # Need to specify the i_episode of the checkpoint intended to load
-    if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
-        policy_net, value_net, policynet_optimizer, valuenet_optimizer, training_info = \
-            load_checkpoint(ckpt_dir, i_epoch, layer_sizes, input_size, device=device)
+    # if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
+    #     policy_net, value_net, valuenet_optimizer, training_info = \
+    #         load_checkpoint(ckpt_dir, i_epoch, layer_sizes, input_size, device=device)
 
     # To record episode stats
     episode_durations = []
     episode_rewards = []
 
+    # Use value net in evaluation mode when collecting trajectories
+    value_net.eval()
 
     ###################################################################
     # Collect trajectories
@@ -221,12 +219,8 @@ while True:
         memory.set_initial_state(current_state, initial_ex_val_est=ex_val)
 
         for t in count():
-            # Make sure that policy net and value net is in training mode
-            policy_net.train()
-            value_net.train()
 
             # Sample an action given the current state
-
             action, log_prob = policy_net(torch.tensor([current_state], device=device))
             log_prob = log_prob.squeeze()
 
@@ -255,7 +249,7 @@ while True:
                     training_info["max reward achieved"] = running_reward
 
                 # Decide whether to render next episode
-                if not(render_each_episode):
+                if not render_each_episode:
                     finished_rendering_this_epoch = True
 
                 break
@@ -263,36 +257,42 @@ while True:
     ###################################################################
     # optimize the model
 
-    # Record epoch stats
-    epoch_durations.append(sum(episode_durations) / batch_size)
-    epoch_rewards.append(sum(episode_rewards) / batch_size)
 
-    # Optimize the PolicyNet for one step after collecting enough trajectories
-    # policy_net.optimize_model(memory, batch_size, policynet_optimizer, device=device)
-
+    # Optimize the PolicyNet for a given number of steps
     policy_candiate = PolicyNet(layer_sizes).to(device)
 
     # copy weights from policy_net to the policy_candidate
     policy_candiate.load_state_dict(policy_net.state_dict())
 
     # initialize the optimizer for policy_net
-    policy_candidate_optimizer = optim.Adam(policy_net.parameters())
+    policy_candidate_optimizer = optim.Adam(policy_candiate.parameters())
 
     ex_gae = memory.extrinsic_gae(batch_size)
+    # ex_gae = memory.extrinsic_discounted_rtg(batch_size)
+    # ex_gae = [(gae - torch.mean(gae)) / torch.std(gae) for gae in ex_gae]     # Normalize
     old_act_log_prob = memory.act_log_prob(batch_size)
     states = memory.states(batch_size)
 
+    # Proximal Policy Optimization
     loss = 0
     for i in range(num_updates_per_epoch):
         print("\n\tUpdate Policy Net: %d" % (i + 1))
         for j in range(batch_size):
-            traj_loss = 0
 
             _, new_act_log_prob = policy_candiate(states[j][:-1])       # Ignore last state
             ratio = torch.exp(new_act_log_prob - old_act_log_prob[j])
             surr1 = ratio * ex_gae[j]
             surr2 = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * ex_gae[j]
             loss += - torch.mean(torch.min(surr1, surr2))
+
+            # traj_loss = 0
+            # for k in range(len(ex_gae[j])):
+            #     _, new_act_log_prob = policy_candiate(states[j][k])
+            #     ratio = torch.exp(new_act_log_prob.squeeze() - old_act_log_prob[j][k])
+            #     surr1 = ratio * ex_gae[j][k]
+            #     surr2 = torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range) * ex_gae[j][k]
+            #     traj_loss += - torch.min(surr1, surr2)
+            # loss += traj_loss / ex_gae[j].shape[0]
 
         loss /= torch.tensor(batch_size, device=device, dtype=torch.float32)
 
@@ -302,12 +302,17 @@ while True:
 
     policy_net.load_state_dict(policy_candiate.state_dict())
 
-    # Obtain batch extrinsic value estimates and rewards-to-go and fit value estimate network by regression on MSE
-    #   for multiple steps
-    val_est = memory.extrinsic_val_est(batch_size)
-    ex_rtg = memory.extrinsic_rtg(batch_size)
+
+    # Optimize value net for a given number of steps
+    # Set value net in training mode
+    value_net.train()
+    ex_rtg = memory.extrinsic_discounted_rtg(batch_size)      # Use undiscounted reward-to-go to fit the value net
+    val_est = []
     for i in range(num_vn_iter):
         print("\n\tUpdate Value Net: %d" % (i + 1))
+        for j in range(batch_size):
+            val_est_traj = value_net(states[j]).squeeze()
+            val_est.append(val_est_traj)
         value_net_mse = value_net.optimize_model(val_est, ex_rtg, valuenet_optimizer)
 
     # Reset Flags
@@ -316,7 +321,11 @@ while True:
 
     ###################################################################
 
-    # Record stats
+
+    # Record epoch stats
+    epoch_durations.append(sum(episode_durations) / batch_size)
+    epoch_rewards.append(sum(episode_rewards) / batch_size)
+
     training_info["epoch mean durations"].append(epoch_durations[-1])
     training_info["epoch mean rewards"].append(epoch_rewards[-1])
     training_info["value net loss"].append(value_net_mse)
@@ -340,7 +349,7 @@ while True:
     i_epoch += 1
 
     # Every save_ckpt_interval, save a checkpoint according to current i_episode.
-    if i_epoch % save_ckpt_interval == 0:
-        save_checkpoint(ckpt_dir, policy_net, value_net, policynet_optimizer, valuenet_optimizer, i_epoch,
-                        policy_lr=policy_lr, valuenet_lr=valuenet_lr, **training_info)
+    # if i_epoch % save_ckpt_interval == 0:
+    #     save_checkpoint(ckpt_dir, policy_net, value_net, valuenet_optimizer, i_epoch,
+    #                     policy_lr=policy_lr, valuenet_lr=valuenet_lr, **training_info)
 

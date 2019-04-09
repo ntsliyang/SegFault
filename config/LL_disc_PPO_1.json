@@ -4,7 +4,7 @@
 
   "input_size": 8,
   "output_size": 4,
-  "layer_sizes": [8, 128, 128, 128, 4],
+  "layer_sizes": [8, 64, 64, 64, 4],
 
   "ckpt_dir": "baseline_ppo_disc/",
   "save_ckpt_interval": 10,
@@ -16,8 +16,8 @@
   "policy_lr": 0.0003,
   "valuenet_lr": 0.001,
 
-  "num_vn_iter": 10,
-  "num_updates_per_epoch": 16,
+  "num_vn_iter": 32,
+  "num_updates_per_epoch": 8,
   "clip_range": 0.2,
 
   "GAMMA": 0.999,

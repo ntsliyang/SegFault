@@ -44,16 +44,26 @@ class ValueNet(nn.Module):
     def __init__(self, input_size):
         super(ValueNet, self).__init__()
 
-        self.FC1 = nn.Linear(input_size, 64)
-        self.FC2 = nn.Linear(64, 64)
-        self.FC3 = nn.Linear(64, 1)
+        self.FC1 = nn.Linear(input_size, 128)
+        self.FC2 = nn.Linear(128, 128)
+        self.FC3 = nn.Linear(128, 128)
+        self.FC4 = nn.Linear(128, 1)
+
+        # self.BN1 = nn.BatchNorm1d(128)
+        # self.BN2 = nn.BatchNorm1d(128)
+        # self.BN3 = nn.BatchNorm1d(128)
 
         self.Elu = nn.ELU()
 
     def forward(self, x):
+        # x = self.Elu(self.BN1(self.FC1(x)))
+        # x = self.Elu(self.BN2(self.FC2(x)))
+        # x = self.Elu(self.BN3(self.FC3(x)))
+
         x = self.Elu(self.FC1(x))
         x = self.Elu(self.FC2(x))
-        x = self.FC3(x)
+        x = self.Elu(self.FC3(x))
+        x = self.FC4(x)
 
         return x
 
@@ -68,13 +78,18 @@ class ValueNet(nn.Module):
         # Assume that the value estimate of the last state is included. This value estimate will be discarded.
         num = 0
         mse = None
+
         for val_est, rtg in zip(value_estimate, reward_to_go):
             if mse is None:
-                mse = torch.sum((val_est[:-1] - rtg) ** 2)
+                mse = F.mse_loss(val_est[:-1], rtg, reduction='sum')
             else:
-                mse += torch.sum((val_est[:-1] - rtg) ** 2)
+                mse += F.mse_loss(val_est[:-1], rtg, reduction='sum')
             num += val_est[:-1].shape[0]
         mse /= num
+
+        # val_est = torch.stack(value_estimate, dim=0)
+        # rtg = torch.stack(reward_to_go, dim=0)
+        # mse = F.mse_loss(val_est[:, :-1], rtg, reduction='mean')
 
         optimizer.zero_grad()
         mse.backward(retain_graph=True)
