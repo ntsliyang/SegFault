@@ -199,7 +199,7 @@ while True:
             policy_net.train()
 
             # Sample an action given the current state
-            action, log_prob = policy_net(torch.tensor([current_state], device=device))
+            action, log_prob = policy_net(torch.tensor([current_state], dtype=torch.float32, device=device))
             log_prob = log_prob.squeeze()
 
             # Interact with the environment

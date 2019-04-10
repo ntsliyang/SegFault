@@ -2,8 +2,8 @@
     Autoencoder hashing function
 
     Architecture:
-        Input: downsampled grayscale four continuous images with size (52 * 52 * 1)
-                Input size: (52 * 52 * 4)
+        Input: downsampled grayscale four continuous images with size (1 * 52 * 52)
+                Input size: (4 * 52 * 52)
 """
 
 import numpy as np
@@ -25,26 +25,29 @@ class AEHash(nn.Module):
         The hash code is given by taking integer rounding after the noise has been injected. The overall value is then
             fed to the decoder during training to produce reconstructed images, through Linear and TransposedConv2d layers
 
-        - Input size: (52 * 52 * 4)
+        - Input size: (4 * 52 * 52)
             - Input should be normalized to values in [0., 1.]
         - Output hash code size: (len_hashcode,)
+
         - Encoder Architecture:
-            - Conv1: kernel size = 5, stride = 2, dilation = 1, num_kernel = 64 -> Output size = (24, 24, 64)
-            - Conv2: kernel size = 5, stride = 2, dilation = 1, num_kernel = 64 -> Output size = (10, 10, 64)
-            - Conv3: kernel size = 3, stride = 2, dilation = 1, num_kernel = 64 -> Output size = (4, 4, 64)
-            - Reshape: Input size = (4, 4, 64) -> Output size = (1024,)
+            - Conv1: kernel size = 5, stride = 2, dilation = 1, num_kernel = 64 -> Output size = (64, 24, 24)
+            - Conv2: kernel size = 5, stride = 2, dilation = 1, num_kernel = 64 -> Output size = (64, 10, 10)
+            - Conv3: kernel size = 3, stride = 2, dilation = 1, num_kernel = 64 -> Output size = (64, 4, 4)
+            - Reshape: Input size = (64, 4, 4) -> Output size = (1024,)
             - Linear1: Input size = (1024,) -> Output size = (k,)
             - Sigmoid activation
+
         - Hashing:
             - Integer rounding to produce hash code
             - Apply uniform noise to activation values: U(-a, a)
+
         - Decoder Architecture:
             - Linear 2: Input size = (k,) -> Output size = (1024,)
-            - Reshape: Input size = (1024,) -> Output size = (4, 4, 64)
-            - ConvTransposed1: kernel size = 4, stride = 2, num_kernel = 64 -> Output size = (10, 10, 64)
-            - ConvTransposed2: kernel size = 6, stride = 2, num_kernel = 64 -> Output size = (24, 24, 64)
-            - ConvTransposed3: kernel size = 6, stride = 2, num_kernel = 64 -> Output size = (52, 52, 64)
-            - Conv4: kernel size = 1, stride = 1, dilation = 1, num_kernel = 4 -> Output size = (52, 52, 4)
+            - Reshape: Input size = (1024,) -> Output size = (64, 4, 4)
+            - ConvTransposed1: kernel size = 4, stride = 2, num_kernel = 64 -> Output size = (64, 10, 10)
+            - ConvTransposed2: kernel size = 6, stride = 2, num_kernel = 64 -> Output size = (64, 24, 24)
+            - ConvTransposed3: kernel size = 6, stride = 2, num_kernel = 64 -> Output size = (64, 52, 52)
+            - Conv4: kernel size = 1, stride = 1, dilation = 1, num_kernel = 4 -> Output size = (4, 52, 52)
     """
 
     def __init__(self, len_hashcode, noise_scale=0.3, saturating_weight=10.):
@@ -75,7 +78,7 @@ class AEHash(nn.Module):
 
     def encoder(self, x):
         # Check input shape
-        assert x.shape[-3:] == (52, 52, 4), "Input must have dimension (None, 52, 52, 4)."
+        assert x.shape[-3:] == (4, 52, 52), "Input must have dimension (None, 4, 52, 52)."
 
         # Propagate through convolutional layers
         x = F.elu(self.Conv1(x))
@@ -99,13 +102,13 @@ class AEHash(nn.Module):
         x = self.FC2(x)
 
         # Reshape
-        x = x.view(-1, 4, 4, 64)
+        x = x.view(-1, 64, 4, 4)
 
         # Propagate through transposed convolutional layers
         x = F.elu(self.ConvTrans1(x))
         x = F.elu(self.ConvTrans2(x))
         x = F.elu(self.ConvTrans3(x))
-        x = F.sigmoid(self.Conv4(x))       # Use tanh to normalize output value into range [0., 1.]
+        x = F.sigmoid(self.Conv4(x))       # Use sigmoid to normalize output value into range [0., 1.]
 
         return x
 

@@ -1,0 +1,30 @@
+{
+  "env_name": "MsPacman-v0",
+  "is_unwrapped": false,
+
+  "actor_layer_sizes": [128, 128, 128, 9],
+  "critic_layer_sizes": [128, 128, 128, 1],
+  "grayscale": true,
+
+  "ckpt_dir": "test_ppo_pixel_MsPacman-v0/",
+  "save_ckpt_interval": 10,
+
+  "capacity": 4,
+
+  "i_epoch": 0,
+  "batch_size": 4,
+
+  "num_updates_per_epoch": 6,
+  "clip_range": 0.2,
+  "vf_coef": 0.5,
+
+  "GAMMA": 0.999,
+  "LAMBDA": 0.96,
+
+  "render": true,
+  "plot": true,
+
+  "render_each_episode": false,
+
+  "num_avg_epoch": 5
+}

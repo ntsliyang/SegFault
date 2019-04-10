@@ -132,7 +132,7 @@ class Memory(object):
         :param batch_size: The number of latest trajectories to consider as a batch
         :return: a list of intrinsic reward-to-go for each trajectory in the batch.
         """
-        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         rtg_list = []
         rews_cat = torch.cat(self.memory['in_rews'][-batch_size:], dim=0)
@@ -156,7 +156,7 @@ class Memory(object):
         :param batch_size: The number of latest trajectories to consider as a batch
         :return: a list of intrinsic reward-to-go for each trajectory in the batch.
         """
-        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         rtg_list = []
         for i in reversed(range(batch_size)):
@@ -175,7 +175,7 @@ class Memory(object):
         :param batch_size:
         :return:
         """
-        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         rtg_list = []
         for i in reversed(range(batch_size)):
@@ -240,7 +240,7 @@ class Memory(object):
         :param lam:
         :return: a one-dimensional tensor
         """
-        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         # Assume for each episode, value estimate of length T, rewards of length T-1
         # Compensate for missing reward at the start of each episode - insert a 0 reward
@@ -274,7 +274,7 @@ class Memory(object):
         :param lam:
         :return: a list of one-dimensional tensors
         """
-        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         gae_list = []
 
@@ -303,7 +303,7 @@ class Memory(object):
         :param batch_size:
         :return:
         """
-        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         act_log_prob = self.memory['act_log_prob'][-batch_size:]
 

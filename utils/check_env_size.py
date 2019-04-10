@@ -2,7 +2,7 @@ import sys
 import gym
 
 
-env_name = "Pendulum-v0"
+env_name = "Freeway-v0"
 
 if len(sys.argv) > 1:
     env_name = sys.argv[1]
