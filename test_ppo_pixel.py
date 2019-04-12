@@ -257,6 +257,7 @@ while True:
 
     # Make a candidate to update parameters
     actor_critic_candidate = copy.deepcopy(actor_critic).to(device)
+    actor_critic_candidate.train()
 
     # initialize the optimizer
     candidate_optimizer = optim.Adam(actor_critic_candidate.parameters())
@@ -287,7 +288,7 @@ while True:
 
             # Calculate the log probabilities of the actions stored in memory from the distribution parameterized by the
             #   new candidate network
-            _, new_act_log_prob, val_est = actor_critic(states[j][:-1], action_query=actions[j])    # Ignore last state
+            _, new_act_log_prob, val_est = actor_critic_candidate(states[j][:-1], action_query=actions[j])    # Ignore last state
 
             # Actor part
             ratio = torch.exp(new_act_log_prob - old_act_log_prob[j].detach())      # Detach old action log prob
@@ -313,7 +314,7 @@ while True:
         loss.backward(retain_graph=True if i < num_updates_per_epoch - 1 else False)    # Free buffer the last time doing backprop
 
         # Clip the gradients in the actor network
-        for layer in actor_critic.actor_layers:
+        for layer in actor_critic_candidate.actor_layers:
             for param in layer.parameters():
                 param.grad.data.clamp_(-1., 1.)
 
