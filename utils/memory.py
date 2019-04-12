@@ -297,39 +297,6 @@ class Memory(object):
 
         return gae_list
 
-    def batch_policy_gradient(self, batch_size):
-        """
-            Compute the policy gradient loss, i.e. average of weighted action log-probability, in the specified batch.
-        :param batch_size:
-        :return:
-        """
-        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
-
-        act_log_prob = self.memory['act_log_prob'][-batch_size:]
-
-        in_gae = self.intrinsic_gae(batch_size)
-        ex_gae = self.extrinsic_gae(batch_size)
-
-        # Concatenate act_log_prob and ex_gae. Note that we are missing one value at each episode, so we compensate by
-        #   inserting a value 0.
-        act_log_prob_list = []
-        ex_gae_list = []
-        for i in range(batch_size):
-            act_log_prob_com = torch.cat([torch.tensor([0.], device=self.device), act_log_prob[i]], dim=0)
-            ex_gae_com = torch.cat([torch.tensor([0.], device=self.device), ex_gae[i]], dim=0)
-            act_log_prob_list.append(act_log_prob_com)
-            ex_gae_list.append(ex_gae_com)
-        alp_cat = torch.cat(act_log_prob_list, dim=0)
-        ex_gae_cat = torch.cat(ex_gae_list, dim=0)
-        # Remove the leading 0
-        alp_cat = alp_cat[1:]
-        ex_gae_cat = ex_gae_cat[1:]
-
-        # Calculate policy gradient. Intrinsic GAE and extrinsic GAE are added together
-        pg_loss = torch.sum(alp_cat * (ex_gae_cat + in_gae)) / torch.tensor(batch_size, device=self.device)
-
-        return pg_loss
-
     def sample_states(self, batch_size):
         """
             Sample a batch of states from the memory.

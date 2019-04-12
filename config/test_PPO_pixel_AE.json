@@ -6,12 +6,16 @@
   "critic_layer_sizes": [128, 128, 128, 1],
   "grayscale": true,
 
-  "ckpt_dir": "test_ppo_pixel_MsPacman-v0/",
+  "ckpt_dir": "test_ppo_pixel_AE_MsPacman-v0/",
   "save_ckpt_interval": 5,
 
-  "capacity": 4,
+  "len_hashcode": 10,
+  "hash_batchsize": 32,
+  "hash_num_updates_per_epoch": 32,
 
-  "i_epoch": 55,
+  "capacity": 32,
+
+  "i_epoch": 0,
   "batch_size": 4,
 
   "num_updates_per_epoch": 6,

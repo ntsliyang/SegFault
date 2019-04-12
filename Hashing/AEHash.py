@@ -92,7 +92,7 @@ class AEHash(nn.Module):
         x = self.FC1(x)
 
         # Propagate through sigmoid activation function
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
 
         # Return activations
         return x
@@ -108,7 +108,7 @@ class AEHash(nn.Module):
         x = F.elu(self.ConvTrans1(x))
         x = F.elu(self.ConvTrans2(x))
         x = F.elu(self.ConvTrans3(x))
-        x = F.sigmoid(self.Conv4(x))       # Use sigmoid to normalize output value into range [0., 1.]
+        x = torch.sigmoid(self.Conv4(x))       # Use sigmoid to normalize output value into range [0., 1.]
 
         return x
 
@@ -143,7 +143,7 @@ class AEHash(nn.Module):
 
         # Apply a random noise sampled from U(-a, a)
         m = Uniform(-self.a, self.a)
-        noise = m.sample(x.shape)
+        noise = m.sample(latent.shape)
         x = latent + noise
 
         # Propogate through decoder
@@ -176,3 +176,6 @@ class AEHash(nn.Module):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        # Return the loss value
+        return loss.item()
