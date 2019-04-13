@@ -9,6 +9,7 @@ matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
 import gym
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torchvision.transforms import Compose, Grayscale, Resize, ToTensor, ToPILImage
@@ -18,6 +19,7 @@ from model.ppo_discrete_pixel import ActorCritic
 from Hashing.AEHash import AEHash
 from utils.utils2 import plot_durations
 from utils.memory import Memory
+from utils.visualize import visualize_aehash
 import json
 import sys
 import copy
@@ -58,7 +60,7 @@ def load_checkpoint(file_dir, i_epoch, actor_layer_sizes, critic_layer_sizes,
     actor_critic = ActorCritic(actor_layer_sizes, critic_layer_sizes, grayscale).to(device)
     actor_critic.load_state_dict(checkpoint["actor_critic"])
 
-    ae_hash = AEHash(len_hashcode)
+    ae_hash = AEHash(len_hashcode, device=device).to(device)
     ae_hash.load_state_dict(checkpoint["ae_hash"])
 
     ae_hash_optim = optim.Adam(ae_hash.parameters())
@@ -98,6 +100,8 @@ save_ckpt_interval = config['save_ckpt_interval']
 
 # Hashing parameter
 len_hashcode = config['len_hashcode']
+noise_scale = config['noise_scale']
+saturating_weight = config['saturating_weight']
 hash_batchsize = config['hash_batchsize']
 hash_num_updates_per_epoch = config['hash_num_updates_per_epoch']
 
@@ -151,7 +155,7 @@ print("Current usable device is: ", device)
 actor_critic = ActorCritic(actor_layer_sizes, critic_layer_sizes, grayscale=grayscale).to(device)
 
 # Create AE Hashing model and optimizers
-ae_hash = AEHash(len_hashcode)
+ae_hash = AEHash(len_hashcode, noise_scale, saturating_weight, device=device).to(device)
 ae_hash_optim = optim.Adam(ae_hash.parameters())
 
 # Set up memory
@@ -231,7 +235,7 @@ while True:
         ex_val = ex_val.squeeze().cpu()
 
         # Store the first state and value estimate in memory
-        memory.set_initial_state(current_state, initial_ex_val_est=ex_val)
+        memory.set_initial_state(current_state.clone().detach().cpu(), initial_ex_val_est=ex_val)
 
         for t in count():
 
@@ -252,11 +256,17 @@ while True:
             value = value.squeeze().cpu()
 
             # Record transition in memory
-            memory.add_transition(action, log_prob, next_state.cpu(), extrinsic_reward=reward, extrinsic_value_estimate=value)
+            memory.add_transition(action, log_prob.cpu(), next_state.clone().detach().cpu(), extrinsic_reward=reward, extrinsic_value_estimate=value)
 
             # Update current state and action
             action = next_action
             log_prob = next_log_prob
+
+            # Visualizing AE Hash
+            # code, latent = ae_hash.hash(next_state.unsqueeze(dim=0), base_ten=False)
+            # recon_state, _ = ae_hash(next_state.unsqueeze(dim=0))
+            #
+            # visualize_aehash(next_state.cpu().numpy(), recon_state.squeeze().cpu().detach().numpy(), code.squeeze(), latent.squeeze().cpu().detach().numpy())
 
             # Render this episode
             if render and (render_each_episode or (not finished_rendering_this_epoch)):
@@ -355,7 +365,9 @@ while True:
     ae_hash_loss = 0
     for i in tqdm(range(hash_num_updates_per_epoch)):
         # Sample a batch of states
-        states_sampled = memory.sample_states(hash_batchsize)
+        states_sampled = memory.sample_states(hash_batchsize).clone().to(device)
+        
+        # print("states_sampled type:", states_sampled.get_device())
         ae_hash_loss = ae_hash.optimize_model(states_sampled, ae_hash_optim)
 
     # Reset Flags
