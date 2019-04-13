@@ -163,12 +163,12 @@ class AEHash(nn.Module):
         # Forward propogate to obtain reconstructed
         recon, latent = self.forward(batch)
 
-        # Calculate the first loss term: MSE for reconstructing loss
-        recon_loss = F.mse_loss(recon, batch, reduction='mean')
+        # Calculate the first loss term: BCE for reconstructing loss
+        recon_loss = F.binary_cross_entropy(recon, batch, reduction='mean')
 
-        # Calculate the second loss term: mse for
+        # Calculate the second loss term: MSE for saturating loss
         target = (latent > 0.5).type(torch.float32)
-        satur_loss = F.binary_cross_entropy(latent, target, reduction='mean')
+        satur_loss = F.mse_loss(latent, target, reduction='mean')
 
         # Final loss is weighted
         loss = recon_loss + self.lam * satur_loss
