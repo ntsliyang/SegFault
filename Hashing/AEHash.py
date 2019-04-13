@@ -50,7 +50,7 @@ class AEHash(nn.Module):
             - Conv4: kernel size = 1, stride = 1, dilation = 1, num_kernel = 4 -> Output size = (4, 52, 52)
     """
 
-    def __init__(self, len_hashcode, noise_scale=0.3, saturating_weight=10.):
+    def __init__(self, len_hashcode, noise_scale=0.3, saturating_weight=10., device='cpu'):
         """
 
         :param len_hashcode: The length of the hashcode
@@ -62,6 +62,7 @@ class AEHash(nn.Module):
         self.k = len_hashcode
         self.a = noise_scale
         self.lam = saturating_weight
+        self.device = device
 
         self.Conv1 = Conv2d(in_channels=4, out_channels=64, kernel_size=5, stride=2)
         self.Conv2 = Conv2d(in_channels=64, out_channels=64, kernel_size=5, stride=2)
@@ -126,16 +127,16 @@ class AEHash(nn.Module):
         x = self.encoder(x)
 
         # Convert to numpy arrays and obtain code by integer rounding
-        binary = np.around(x.cpu().numpy()).astype(np.int0)
+        binary = np.around(x.cpu().detach().numpy()).astype(np.int0)
 
         # Convert to base 10 if base_ten is True
         if base_ten:
-            code = np.zeros(x.shape[0], dtype=np.int32)
+            code = np.zeros((x.shape[0]), dtype=np.int32)
             for i in range(self.k):
-                code += code[:, -(i + 1)] * (2 ** i)
+                code += binary[:, -(i + 1)] * (2 ** i)
         else:
             code = binary
-        return code
+        return code, x      # Return both code and latent vector
 
     def forward(self, x):
         # Propogate through encoder
@@ -143,7 +144,7 @@ class AEHash(nn.Module):
 
         # Apply a random noise sampled from U(-a, a)
         m = Uniform(-self.a, self.a)
-        noise = m.sample(latent.shape)
+        noise = m.sample(latent.shape).to(self.device)
         x = latent + noise
 
         # Propogate through decoder

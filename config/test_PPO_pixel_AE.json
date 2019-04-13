@@ -1,19 +1,21 @@
 {
-  "env_name": "MsPacman-v0",
+  "env_name": "Freeway-v0",
   "is_unwrapped": false,
 
-  "actor_layer_sizes": [128, 128, 128, 9],
+  "actor_layer_sizes": [128, 128, 128, 3],
   "critic_layer_sizes": [128, 128, 128, 1],
   "grayscale": true,
 
-  "ckpt_dir": "test_ppo_pixel_AE_MsPacman-v0/",
+  "ckpt_dir": "test_ppo_pixel_AE_Freeway-v0/",
   "save_ckpt_interval": 5,
 
-  "len_hashcode": 10,
+  "len_hashcode": 512,
+  "noise_scale": 0.2,
+  "saturating_weight": 0.1,
   "hash_batchsize": 32,
   "hash_num_updates_per_epoch": 32,
 
-  "capacity": 32,
+  "capacity": 4,
 
   "i_epoch": 0,
   "batch_size": 4,
