@@ -8,7 +8,7 @@ class Memory(object):
              intrinsic_value_estimate, extrinsic_value_estimate)
     """
 
-    def __init__(self, capacity=100, gamma=0.98, lam=0.96, device='cpu'):
+    def __init__(self, capacity=100, gamma=0.98, lam=0.96, epsilon=1e-9, device='cpu'):
         """
         :param capacity: The maximum number of trajectories to keep.
         """
@@ -16,6 +16,7 @@ class Memory(object):
         self.capacity = capacity
         self.gamma = gamma
         self.lam = lam
+        self.epsilon = epsilon
         self.memory = {
             'states': [],
             'actions': [],
@@ -289,9 +290,14 @@ class Memory(object):
 
             weights = torch.tensor([(self.gamma * self.lam) ** i for i in range(delta.shape[0])], device=self.device)
 
-            weighted_delta = delta * weights
+            gae = torch.zeros(delta.shape[0], dtype=torch.float32, device=self.device)
 
-            gae = torch.tensor([torch.sum(weighted_delta[i:]) / ((self.gamma * self.lam) ** i) for i in range(weighted_delta.shape[0])], device=self.device)
+            for j in reversed(range(gae.shape[0])):
+                gae[j] = delta[j] + (self.gamma * self.lam) * (delta[j + 1] if j + 1 < gae.shape[0] else 0.)
+
+            # weighted_delta = delta * weights
+
+            # gae = torch.tensor([torch.sum(weighted_delta[i:]) / ((self.gamma * self.lam) ** i) for i in range(weighted_delta.shape[0])], device=self.device)
 
             gae_list.append(gae)
 
