@@ -10,19 +10,20 @@
   "save_ckpt_interval": 5,
 
   "stacked": false,
-  "len_hashcode": 64,
-  "noise_scale": 0.4,
+  "len_AE_hashcode": 64,
+  "len_SimHash_hashcode": 10,
+  "noise_scale": 0.3,
   "saturating_weight": 0.1,
   "hash_batchsize": 128,
   "hash_num_updates_per_epoch": 64,
 
   "capacity": 4,
 
-  "i_epoch": 0,
+  "i_epoch": 30,
   "batch_size": 4,
 
   "num_updates_per_epoch": 4,
-  "clip_range": 0.1,
+  "clip_range": 0.2,
   "vf_coef": 0.5,
 
   "GAMMA": 0.999,

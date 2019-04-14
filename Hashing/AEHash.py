@@ -9,7 +9,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, ConvTranspose2d, Linear
+from torch.nn import Conv2d, ConvTranspose2d, Linear, BatchNorm2d
 import torch.nn.functional as F
 from torch.distributions import Uniform
 
@@ -50,7 +50,7 @@ class AEHash(nn.Module):
             - Conv4: kernel size = 1, stride = 1, dilation = 1, num_kernel = 4 -> Output size = (4, 52, 52)
     """
 
-    def __init__(self, len_hashcode, noise_scale=0.3, saturating_weight=10., device='cpu'):
+    def __init__(self, len_hashcode, num_channels=4, noise_scale=0.4, saturating_weight=10., device='cpu'):
         """
 
         :param len_hashcode: The length of the hashcode
@@ -59,14 +59,19 @@ class AEHash(nn.Module):
         """
         super(AEHash, self).__init__()
 
+        self.num_channels = num_channels
         self.k = len_hashcode
         self.a = noise_scale
         self.lam = saturating_weight
         self.device = device
 
-        self.Conv1 = Conv2d(in_channels=4, out_channels=64, kernel_size=5, stride=2)
+        self.Conv1 = Conv2d(in_channels=self.num_channels, out_channels=64, kernel_size=5, stride=2)
         self.Conv2 = Conv2d(in_channels=64, out_channels=64, kernel_size=5, stride=2)
         self.Conv3 = Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=2)
+
+        self.Cbn1 = BatchNorm2d(64)
+        self.Cbn2 = BatchNorm2d(64)
+        self.Cbn3 = BatchNorm2d(64)
 
         self.FC1 = Linear(in_features=1024, out_features=self.k)
         self.FC2 = Linear(in_features=self.k, out_features=1024)
@@ -75,16 +80,28 @@ class AEHash(nn.Module):
         self.ConvTrans2 = ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=6, stride=2)
         self.ConvTrans3 = ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=6, stride=2)
 
-        self.Conv4 = Conv2d(in_channels=64, out_channels=4, kernel_size=1, stride=1)
+        self.Ctbn1 = BatchNorm2d(64)
+        self.Ctbn2 = BatchNorm2d(64)
+        self.Ctbn3 = BatchNorm2d(64)
+
+        self.Conv4 = Conv2d(in_channels=64, out_channels=self.num_channels, kernel_size=1, stride=1)
 
     def encoder(self, x):
         # Check input shape
-        assert x.shape[-3:] == (4, 52, 52), "Input must have dimension (None, 4, 52, 52)."
+        assert x.shape[-3:] == (self.num_channels, 52, 52), "Input must have dimension (None, 4, 52, 52)."
 
         # Propagate through convolutional layers
-        x = F.elu(self.Conv1(x))
-        x = F.elu(self.Conv2(x))
-        x = F.elu(self.Conv3(x))
+        x = self.Conv1(x)
+        x = self.Cbn1(x)
+        x = F.elu(x)
+
+        x = self.Conv2(x)
+        x = self.Cbn2(x)
+        x = F.elu(x)
+
+        x = self.Conv3(x)
+        x = self.Cbn3(x)
+        x = F.elu(x)
 
         # Reshape
         x = x.view(-1, 1024)
@@ -106,9 +123,18 @@ class AEHash(nn.Module):
         x = x.view(-1, 64, 4, 4)
 
         # Propagate through transposed convolutional layers
-        x = F.elu(self.ConvTrans1(x))
-        x = F.elu(self.ConvTrans2(x))
-        x = F.elu(self.ConvTrans3(x))
+        x = self.ConvTrans1(x)
+        x = self.Ctbn1(x)
+        x = F.elu(x)
+
+        x = self.ConvTrans2(x)
+        x = self.Ctbn2(x)
+        x = F.elu(x)
+
+        x = self.ConvTrans3(x)
+        x = self.Ctbn3(x)
+        x = F.elu(x)
+
         x = torch.sigmoid(self.Conv4(x))       # Use sigmoid to normalize output value into range [0., 1.]
 
         return x

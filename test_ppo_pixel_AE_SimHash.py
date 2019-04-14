@@ -17,6 +17,7 @@ from itertools import count
 import os
 from model.ppo_discrete_pixel import ActorCritic
 from Hashing.AEHash import AEHash
+from Hashing.SimHash import SimHash
 from utils.utils2 import plot_durations
 from utils.memory import Memory
 from utils.visualize import visualize_aehash
@@ -100,7 +101,8 @@ save_ckpt_interval = config['save_ckpt_interval']
 
 # Hashing parameter
 stacked = config['stacked']
-len_hashcode = config['len_hashcode']
+len_AE_hashcode = config['len_AE_hashcode']
+len_SimHash_hashcode = config['len_SimHash_hashcode']
 noise_scale = config['noise_scale']
 saturating_weight = config['saturating_weight']
 hash_batchsize = config['hash_batchsize']
@@ -156,8 +158,11 @@ print("Current usable device is: ", device)
 actor_critic = ActorCritic(actor_layer_sizes, critic_layer_sizes, grayscale=grayscale).to(device)
 
 # Create AE Hashing model and optimizers
-ae_hash = AEHash(len_hashcode, 4 if stacked else 1, noise_scale, saturating_weight, device=device).to(device)
+ae_hash = AEHash(len_AE_hashcode, 4 if stacked else 1, noise_scale, saturating_weight, device=device).to(device)
 ae_hash_optim = optim.Adam(ae_hash.parameters())
+
+# Create SimHash
+sim_hash = SimHash(len_AE_hashcode, len_SimHash_hashcode)
 
 # Set up memory
 memory = Memory(capacity, GAMMA, LAMBDA, 'cpu')     # Put memory on cpu to save space
@@ -196,7 +201,7 @@ while True:
     # Need to specify the i_episode of the checkpoint intended to load
     if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
         actor_critic, ae_hash, ae_hash_optim, training_info = \
-            load_checkpoint(ckpt_dir, i_epoch, actor_layer_sizes, critic_layer_sizes, len_hashcode, stacked, device=device)
+            load_checkpoint(ckpt_dir, i_epoch, actor_layer_sizes, critic_layer_sizes, len_AE_hashcode, stacked, device=device)
         print("\n\t Checkpoint successfully loaded! \n")
 
     # To record episode stats
@@ -264,15 +269,17 @@ while True:
             log_prob = next_log_prob
 
             # Visualizing AE Hash
-            # ae_hash.eval()      # Set in evaluation mode
-            # if stacked:
-            #     code, latent = ae_hash.hash(next_state.unsqueeze(dim=0), base_ten=False)
-            #     recon_state, _ = ae_hash(next_state.unsqueeze(dim=0))
-            # else:
-            #     code, latent = ae_hash.hash(next_frame.unsqueeze(dim=0), base_ten=False)
-            #     recon_state, _ = ae_hash(next_frame.unsqueeze(dim=0))
-            #
-            # visualize_aehash(next_state.cpu().numpy(), recon_state.squeeze().cpu().detach().numpy(), code.squeeze(), latent.squeeze().cpu().detach().numpy())
+            ae_hash.eval()      # Set in evaluation mode
+            if stacked:
+                code, latent = ae_hash.hash(next_state.unsqueeze(dim=0), base_ten=False)
+                recon_state, _ = ae_hash(next_state.unsqueeze(dim=0))
+            else:
+                code, latent = ae_hash.hash(next_state[-1:].unsqueeze(dim=0), base_ten=False)
+                recon_state, _ = ae_hash(next_state[-1:].unsqueeze(dim=0))
+
+            sim_code = sim_hash.hash(code.squeeze())
+
+            visualize_aehash(next_state.cpu().numpy(), recon_state.squeeze(dim=0).cpu().detach().numpy(), code.squeeze(), latent.squeeze().cpu().detach().numpy())
 
             # Render this episode
             if render and (render_each_episode or (not finished_rendering_this_epoch)):

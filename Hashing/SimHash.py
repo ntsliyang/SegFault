@@ -15,6 +15,9 @@ class SimHash(object):
         self._k = k
         self._preprocessor = preprocessor
 
+        # Initialize hashing matrix
+        self.A = np.random.randn(self._k, self._D)
+
     def hash(self, s, base_ten=True):
         """
             SimHash function
@@ -28,10 +31,8 @@ class SimHash(object):
             assert x.shape == (self._D,), "The preprocessor must return a vector of shape (D,)"
         else:
             x = s
-        # Initialize hashing matrix
-        A = np.random.randn(self._k, self._D)
         # Dot product
-        y = np.dot(A, x)
+        y = np.dot(self.A, x)
         # Round to integer
         y = (y > 0).astype(np.int0)
         # Return output

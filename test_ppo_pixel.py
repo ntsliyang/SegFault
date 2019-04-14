@@ -170,6 +170,7 @@ while True:
     if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
         actor_critic, training_info = \
             load_checkpoint(ckpt_dir, i_epoch, actor_layer_sizes, critic_layer_sizes, device=device)
+        print("\n\t Checkpoint successfully loaded! \n")
 
     # To record episode stats
     episode_durations = []

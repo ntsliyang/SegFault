@@ -16,7 +16,7 @@ from torchvision.transforms import Compose, Grayscale, Resize, ToTensor, ToPILIm
 from itertools import count
 import os
 from model.ppo_discrete_pixel import ActorCritic
-from Hashing.AEHash import AEHash
+from Hashing.VAEHash import VAEHash
 from utils.utils2 import plot_durations
 from utils.memory import Memory
 from utils.visualize import visualize_aehash
@@ -28,10 +28,10 @@ from tqdm import tqdm
 
 # Utils for saving and loading checkpoints
 
-def save_checkpoint(file_dir, actor_critic, ae_hash, ae_hash_optim, i_epoch, **kwargs):
+def save_checkpoint(file_dir, actor_critic, vae_hash, vae_hash_optim, i_epoch, **kwargs):
     save_dict = {"actor_critic": actor_critic.state_dict(),
-                 "ae_hash": ae_hash.state_dict(),
-                 "ae_hash_optim": ae_hash_optim.state_dict(),
+                 "vae_hash": vae_hash.state_dict(),
+                 "vae_hash_optim": vae_hash_optim.state_dict(),
                  "i_epoch": i_epoch
                  }
     # Save optional contents
@@ -54,24 +54,24 @@ def save_checkpoint(file_dir, actor_critic, ae_hash, ae_hash_optim, i_epoch, **k
 
 
 def load_checkpoint(file_dir, i_epoch, actor_layer_sizes, critic_layer_sizes,
-                    len_hashcode, stacked, grayscale=True, device='cuda'):
+                    len_hashcode, stacked, noise_scale, saturating_weight, grayscale=True, device='cuda'):
     checkpoint = torch.load(os.path.join(file_dir, "ckpt_eps%d.pt" % i_epoch), map_location=device)
 
     actor_critic = ActorCritic(actor_layer_sizes, critic_layer_sizes, grayscale).to(device)
     actor_critic.load_state_dict(checkpoint["actor_critic"])
 
-    ae_hash = AEHash(len_hashcode, 4 if stacked else 1, device=device).to(device)
-    ae_hash.load_state_dict(checkpoint["ae_hash"])
+    vae_hash = VAEHash(len_hashcode, 4 if stacked else 1, noise_scale, saturating_weight, device=device).to(device)
+    vae_hash.load_state_dict(checkpoint["vae_hash"])
 
-    ae_hash_optim = optim.Adam(ae_hash.parameters())
-    ae_hash_optim.load_state_dict(checkpoint["ae_hash_optim"])
+    vae_hash_optim = optim.Adam(vae_hash.parameters())
+    vae_hash_optim.load_state_dict(checkpoint["vae_hash_optim"])
 
     checkpoint.pop("actor_critic")
     checkpoint.pop("i_epoch")
-    checkpoint.pop("ae_hash")
-    checkpoint.pop("ae_hash_optim")
+    checkpoint.pop("vae_hash")
+    checkpoint.pop("vae_hash_optim")
 
-    return actor_critic, ae_hash, ae_hash_optim, checkpoint
+    return actor_critic, vae_hash, vae_hash_optim, checkpoint
 
 
 # Load command line arguments
@@ -156,8 +156,8 @@ print("Current usable device is: ", device)
 actor_critic = ActorCritic(actor_layer_sizes, critic_layer_sizes, grayscale=grayscale).to(device)
 
 # Create AE Hashing model and optimizers
-ae_hash = AEHash(len_hashcode, 4 if stacked else 1, noise_scale, saturating_weight, device=device).to(device)
-ae_hash_optim = optim.Adam(ae_hash.parameters())
+vae_hash = VAEHash(len_hashcode, 4 if stacked else 1, noise_scale, saturating_weight, device=device).to(device)
+vae_hash_optim = optim.Adam(vae_hash.parameters())
 
 # Set up memory
 memory = Memory(capacity, GAMMA, LAMBDA, 'cpu')     # Put memory on cpu to save space
@@ -179,7 +179,7 @@ training_info = {"epoch mean durations" : [],
                  "max reward achieved": 0,
                  "past %d epochs mean reward" % num_avg_epoch: 0,
                  "value net loss": [],
-                 "AE Hash loss": []}
+                 "VAE Hash loss": []}
 
 # To record epoch stats
 epoch_durations = []
@@ -195,8 +195,9 @@ while True:
     # If there is, load checkpoint and continue training
     # Need to specify the i_episode of the checkpoint intended to load
     if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
-        actor_critic, ae_hash, ae_hash_optim, training_info = \
-            load_checkpoint(ckpt_dir, i_epoch, actor_layer_sizes, critic_layer_sizes, len_hashcode, stacked, device=device)
+        actor_critic, vae_hash, vae_hash_optim, training_info = \
+            load_checkpoint(ckpt_dir, i_epoch, actor_layer_sizes, critic_layer_sizes,
+                            len_hashcode, stacked, noise_scale, saturating_weight, device=device)
         print("\n\t Checkpoint successfully loaded! \n")
 
     # To record episode stats
@@ -264,15 +265,11 @@ while True:
             log_prob = next_log_prob
 
             # Visualizing AE Hash
-            # ae_hash.eval()      # Set in evaluation mode
-            # if stacked:
-            #     code, latent = ae_hash.hash(next_state.unsqueeze(dim=0), base_ten=False)
-            #     recon_state, _ = ae_hash(next_state.unsqueeze(dim=0))
-            # else:
-            #     code, latent = ae_hash.hash(next_frame.unsqueeze(dim=0), base_ten=False)
-            #     recon_state, _ = ae_hash(next_frame.unsqueeze(dim=0))
+            # vae_hash.eval()      # Set in evaluation mode
+            # _, _, latent, code, recon_state = vae_hash(next_state.unsqueeze(dim=0), base_ten=False)
             #
-            # visualize_aehash(next_state.cpu().numpy(), recon_state.squeeze().cpu().detach().numpy(), code.squeeze(), latent.squeeze().cpu().detach().numpy())
+            # visualize_aehash(next_state.cpu().numpy(), recon_state.squeeze().cpu().detach().numpy(),
+            #                  code.squeeze().cpu().detach().numpy(), latent.squeeze().cpu().detach().numpy())
 
             # Render this episode
             if render and (render_each_episode or (not finished_rendering_this_epoch)):
@@ -368,17 +365,15 @@ while True:
 
     print("\n\n\tUpdate Autoencoder Hashing model for %d steps:" % hash_num_updates_per_epoch)
 
-    ae_hash.train()     # Set in training mode
+    vae_hash.train()     # Set in training mode
 
-    ae_hash_loss = 0
+    vae_hash_loss = 0
     for i in tqdm(range(hash_num_updates_per_epoch)):
         # Sample a batch of states
         states_sampled = memory.sample_states(hash_batchsize).clone().to(device)
-
-        if stacked:
-            ae_hash_loss = ae_hash.optimize_model(states_sampled, ae_hash_optim)
-        else:
-            ae_hash_loss = ae_hash.optimize_model(states_sampled[:, -1:, :, :], ae_hash_optim)  # If not stacked, take the last channel
+        
+        # print("states_sampled type:", states_sampled.get_device())
+        vae_hash_loss = vae_hash.optimize_model(states_sampled, vae_hash_optim)
 
     # Reset Flags
     if not(render_each_episode):
@@ -393,7 +388,7 @@ while True:
     training_info["epoch mean durations"].append(epoch_durations[-1])
     training_info["epoch mean rewards"].append(epoch_rewards[-1])
     training_info["value net loss"].append(critic_loss_total)
-    training_info["AE Hash loss"].append(ae_hash_loss)
+    training_info["VAE Hash loss"].append(vae_hash_loss)
     if (i_epoch + 1) % num_avg_epoch:
         training_info["past %d epochs mean reward" %  (num_avg_epoch)] = \
             (sum(training_info["epoch mean rewards"][-num_avg_epoch:]) / num_avg_epoch) \
@@ -405,16 +400,16 @@ while True:
     print("epoch mean rewards: %f" % (epoch_rewards[-1]))
     print("Max reward achieved: %f" % training_info["max reward achieved"])
     print("value net loss: %f" % critic_loss_total)
-    print("Autoencoder Hashing model loss: %f" % ae_hash_loss)
+    print("Variational autoencoder Hashing model loss: %f" % vae_hash_loss)
 
     # Plot stats
     if plot:
         # plot_durations(training_info["epoch mean rewards"], training_info["value net loss"])
-        plot_durations(training_info["epoch mean rewards"], training_info["value net loss"], training_info["AE Hash loss"])
+        plot_durations(training_info["epoch mean rewards"], training_info["value net loss"], training_info["VAE Hash loss"])
 
     # Update counter
     i_epoch += 1
 
     # Every save_ckpt_interval, save a checkpoint according to current i_episode.
     if i_epoch % save_ckpt_interval == 0:
-        save_checkpoint(ckpt_dir, actor_critic, ae_hash, ae_hash_optim, i_epoch, **training_info)
+        save_checkpoint(ckpt_dir, actor_critic, vae_hash, vae_hash_optim, i_epoch, **training_info)

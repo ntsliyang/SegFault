@@ -1,28 +1,28 @@
 {
-  "env_name": "MsPacman-v0",
+  "env_name": "Frostbite-v0",
   "is_unwrapped": false,
 
-  "actor_layer_sizes": [128, 128, 128, 9],
+  "actor_layer_sizes": [128, 128, 128, 18],
   "critic_layer_sizes": [128, 128, 128, 1],
   "grayscale": true,
 
-  "ckpt_dir": "test_ppo_pixel_AE_MsPacman-v0/",
+  "ckpt_dir": "test_ppo_pixel_VAE_Frostbite-v0/",
   "save_ckpt_interval": 5,
 
-  "stacked": false,
-  "len_hashcode": 64,
-  "noise_scale": 0.4,
-  "saturating_weight": 0.1,
+  "stacked": true,
+  "len_hashcode": 32,
+  "noise_scale": 0.3,
+  "saturating_weight": 10,
   "hash_batchsize": 128,
   "hash_num_updates_per_epoch": 64,
 
   "capacity": 4,
 
-  "i_epoch": 0,
+  "i_epoch": 15,
   "batch_size": 4,
 
   "num_updates_per_epoch": 4,
-  "clip_range": 0.1,
+  "clip_range": 0.2,
   "vf_coef": 0.5,
 
   "GAMMA": 0.999,
