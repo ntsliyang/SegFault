@@ -32,16 +32,16 @@ class Memory(object):
             Call this function after calling env.reset(), when at the start of a new trajectory.
         :param initial_state:
         """
-        initial_state = torch.tensor(initial_state, device=self.device).unsqueeze(dim=0)    # Unsqueeze at dim=0 to form a list
+        initial_state = torch.tensor(initial_state, dtype=torch.float32, device=self.device).unsqueeze(dim=0)    # Unsqueeze at dim=0 to form a list
 
         if initial_in_val_est is None:
-            initial_in_val_est = torch.tensor([0.], device=self.device)
+            initial_in_val_est = torch.tensor([0.], dtype=torch.float32, device=self.device)
         else:
             assert len(initial_in_val_est.shape) == 0, "intrinsic value estimate should be a scalar value"
             initial_in_val_est = initial_in_val_est.unsqueeze(dim=0)
 
         if initial_ex_val_est is None:
-            initial_ex_val_est = torch.tensor([0.], device=self.device)
+            initial_ex_val_est = torch.tensor([0.], dtype=torch.float32, device=self.device)
         else:
             assert len(initial_ex_val_est.shape) == 0, "extrinsic value estimate should be a scalar value"
             initial_ex_val_est = initial_ex_val_est.unsqueeze(dim=0)
@@ -86,7 +86,7 @@ class Memory(object):
 
         action = action.unsqueeze(dim=0)
         action_log_prob = action_log_prob.unsqueeze(dim=0)
-        next_state = torch.tensor(next_state, device=self.device).unsqueeze(dim=0)
+        next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device).unsqueeze(dim=0)
         intrinsic_reward = torch.tensor(intrinsic_reward, dtype=torch.float32, device=self.device).unsqueeze(dim=0)
         extrinsic_reward = torch.tensor(extrinsic_reward, dtype=torch.float32, device=self.device).unsqueeze(dim=0)
         intrinsic_value_estimate = intrinsic_value_estimate.unsqueeze(dim=0)
@@ -126,7 +126,6 @@ class Memory(object):
         rets = [torch.sum(self.memory['ex_rews'][-(i + 1)]) for i in reversed(range(batch_size))]
         return rets
 
-    # TODO: Add an unweighted version of intrinsic reward-to-go
     def intrinsic_rtg(self, batch_size):
         """
             Compute intrinsic reward-to-go. This is computed without end-of-episode reward cut off.
@@ -239,19 +238,19 @@ class Memory(object):
         :param batch_size:
         :param gamma:
         :param lam:
-        :return: a one-dimensional tensor
+        :return: a list of a one-dimensional tensor
         """
         assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         # Assume for each episode, value estimate of length T, rewards of length T-1
-        # Compensate for missing reward at the start of each episode - insert a 0 reward
+        # Compensate for missing reward at the **end** of each episode - insert a 0 reward
         rews_list = []
         for i in reversed(range(batch_size)):
-            rew = torch.cat([torch.tensor([0.], device=self.device), self.memory['in_rews'][-(i+1)]], dim=0)
+            rew = torch.cat([self.memory['in_rews'][-(i+1)], torch.tensor([0.], device=self.device)], dim=0)
             rews_list.append(rew)
         rews_cat = torch.cat(rews_list, dim=0)
-        # Delete the first reward compensate
-        rews_cat = rews_cat[1:]
+        # Delete the last reward compensate
+        rews_cat = rews_cat[:-1]
 
         val_cat = torch.cat(self.memory['in_val_est'][-batch_size:], dim=0)
 
@@ -261,11 +260,23 @@ class Memory(object):
 
         weights = torch.tensor([(self.gamma * self.lam) ** i for i in range(delta.shape[0])], device=self.device)
 
-        weighted_delta = delta * weights
+        gae = torch.zeros(delta.shape[0], dtype=torch.float32, device=self.device)
 
-        gae = torch.tensor([torch.sum(weighted_delta[i:]) / ((self.gamma * self.lam) ** i) for i in range(weighted_delta.shape[0])], device=self.device)
+        for j in reversed(range(gae.shape[0])):
+            gae[j] = delta[j] + (self.gamma * self.lam) * (delta[j + 1] if j + 1 < gae.shape[0] else 0.)
 
-        return gae
+        gae_list = []
+        start_idx = 0
+        for i in reversed(range(batch_size)):
+            length = self.memory['in_val_est'][-(i + 1)].shape[0]
+
+            # If not the last trajectory, ignore last gae value at this trajectory
+            gae_traj = gae[start_idx: start_idx + length - 1 if i > 0 else start_idx + length]
+            gae_list.append(gae_traj)
+
+            start_idx += length
+
+        return gae_list
 
     def extrinsic_gae(self, batch_size):
         """
@@ -294,10 +305,6 @@ class Memory(object):
 
             for j in reversed(range(gae.shape[0])):
                 gae[j] = delta[j] + (self.gamma * self.lam) * (delta[j + 1] if j + 1 < gae.shape[0] else 0.)
-
-            # weighted_delta = delta * weights
-
-            # gae = torch.tensor([torch.sum(weighted_delta[i:]) / ((self.gamma * self.lam) ** i) for i in range(weighted_delta.shape[0])], device=self.device)
 
             gae_list.append(gae)
 
