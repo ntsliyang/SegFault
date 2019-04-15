@@ -243,7 +243,8 @@ class LPLGraph(object):
             cum_prod *= (1 - v)
 
         # Final expected value
-        expected = cum_prod * (1 - cum_prod)
+        #expected = cum_prod * (1 - cum_prod)
+        expected = (1 - cum_prod)
 
         return expected
 
