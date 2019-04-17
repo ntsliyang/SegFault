@@ -1,12 +1,12 @@
 {
-  "env_name": "MontezumaRevenge-v0",
+  "env_name": "Frostbite-v0",
   "is_unwrapped": false,
 
-  "actor_layer_sizes": [128, 128, 128, 18],
-  "critic_1_layer_sizes": [128, 128, 128, 1],
+  "actor_layer_sizes": [128, 128, 18],
+  "critic_1_layer_sizes": [128, 128, 1],
   "grayscale": true,
 
-  "ckpt_dir": "LPL_ppo_pixel_AE_SimHash_MontezumaRevenge-v0/",
+  "ckpt_dir": "LPL_ppo_pixel_AE_SimHash_Frostbite-v0/",
   "save_ckpt_interval": 5,
 
   "stacked": false,
@@ -19,8 +19,8 @@
 
   "max_reward": 200,
   "num_particles": 20,
-  "curiosity_weight": 1.0,
-  "curiosity_delay": 30,
+  "curiosity_weight": 3.0,
+  "curiosity_delay": 5,
 
   "capacity": 4,
 

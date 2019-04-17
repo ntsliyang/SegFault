@@ -163,7 +163,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("Current usable device is: ", device)
 
 # Create the model
-actor_critic = ActorCriticLSTM(actor_layer_sizes, critic_1_layer_sizes, grayscale=grayscale, device=device).to(device)
+actor_critic = ActorCriticLSTM(actor_layer_sizes, critic_1_layer_sizes, critic_2_extra_input=1, use_lstm=False, grayscale=grayscale, device=device).to(device)
 
 # Create AE Hashing model and optimizers
 ae_hash = AEHash(len_AE_hashcode, 4 if stacked else 1, noise_scale, saturating_weight, device=device).to(device)
@@ -255,7 +255,7 @@ while True:
 
         # Obtain action, log probability, and value estimate for the initial state
         # Move the outputs to cpu to save memory
-        action, log_prob, ex_val, in_val = actor_critic(current_state.unsqueeze(dim=0))
+        action, log_prob, ex_val, in_val = actor_critic(current_state.unsqueeze(dim=0), i_episode=i_episode)
         action = action.squeeze().cpu()
         log_prob = log_prob.squeeze().cpu()
         ex_val = ex_val.squeeze().cpu()
@@ -283,7 +283,7 @@ while True:
 
             # Obtain action, log probability and value estimate for the next state in a single propagation
             # Move the outputs to cpu to save memory
-            next_action, next_log_prob, ex_val, in_val = actor_critic(next_state.unsqueeze(dim=0))
+            next_action, next_log_prob, ex_val, in_val = actor_critic(next_state.unsqueeze(dim=0), i_episode=i_episode)
             next_action = next_action.squeeze().cpu()
             next_log_prob = next_log_prob.squeeze().cpu()
             ex_val = ex_val.squeeze().cpu()
@@ -404,7 +404,7 @@ while True:
 
             # Calculate the log probabilities of the actions stored in memory from the distribution parameterized by the
             #   new candidate network
-            _, new_act_log_prob, ex_val_est, in_val_est = actor_critic_candidate(states[j][:-1], action_query=actions[j])    # Ignore last state
+            _, new_act_log_prob, ex_val_est, in_val_est = actor_critic_candidate(states[j][:-1], i_episode=j, action_query=actions[j])    # Ignore last state
 
             # Actor part
             ratio = torch.exp(new_act_log_prob - old_act_log_prob[j])      # Detach old action log prob

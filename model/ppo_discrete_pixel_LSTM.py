@@ -35,10 +35,12 @@ class ActorCriticLSTM(nn.Module):
             - Output FC: (seq_len, N, 128) -> (seq_len, N, 1)
     """
 
-    def __init__(self, actor_layer_sizes, critic_1_layer_sizes, grayscale=True, device='cpu'):
+    def __init__(self, actor_layer_sizes, critic_1_layer_sizes,
+                 critic_2_extra_input=None, use_lstm=True, grayscale=True, device='cpu'):
         super(ActorCriticLSTM, self).__init__()
 
         self.device = device
+        self.use_lstm=use_lstm
 
         in_channels = 4 if grayscale else 12
         self.grayscale = grayscale
@@ -49,22 +51,36 @@ class ActorCriticLSTM(nn.Module):
         self.encoder_FC1 = Linear(1024, 128)
 
         # Store the network layers in a ModuleList
+        # Actor module
         self.actor_layers = nn.ModuleList()
         input_size = 128
         for output_size in actor_layer_sizes:
             self.actor_layers.append(Linear(input_size, output_size))
             input_size = output_size
 
+        # FC Critic module
         self.critic_1_layers = nn.ModuleList()
         input_size = 128
         for output_size in critic_1_layer_sizes:
             self.critic_1_layers.append(Linear(input_size, output_size))
             input_size = output_size
 
-        self.critic_2_lstm = LSTM(input_size=128, hidden_size=128)
+        # LSTM critic module
+        if critic_2_extra_input is not None:
+            assert type(critic_2_extra_input) is int, "critic_2_extra_input must be an integer."
+            self.critic_2_lstm = LSTM(input_size=128 + critic_2_extra_input, hidden_size=128)
+        else:
+            self.critic_2_lstm = LSTM(input_size=128, hidden_size=128)
         self.critic_2_FC = Linear(128, 1)
         self.h0 = None
         self.c0 = None      # Initialize initial hidden and cell state for LSTM critic
+
+        # A backup FC Critic 2 module
+        self.critic_2_layers = nn.ModuleList()
+        input_size = 128 + critic_2_extra_input if critic_2_extra_input is not None else 128
+        for output_size in critic_1_layer_sizes:
+            self.critic_2_layers.append(Linear(input_size, output_size))
+            input_size = output_size
 
     def encoding(self, x):
         # Check input size
@@ -133,26 +149,41 @@ class ActorCriticLSTM(nn.Module):
         :param x:
         :return:
         """
+        if self.use_lstm:
+            assert len(x.shape) == 3, "Input x must have shape (seq_len, N, input_size). x now has {}".format(x.shape)
 
-        assert len(x.shape) == 3, "Input x must have shape (seq_len, N, input_size). x now has {}".format(x.shape)
+            batch_size = x.shape[1]
 
-        batch_size = x.shape[1]
+            # If h0 and c0 are None, then initialize
+            if self.h0 is None and self.c0 is None:
+                self.h0 = torch.zeros((1, batch_size, 128), dtype=torch.float32, device=self.device)
+                self.c0 = torch.zeros((1, batch_size, 128), dtype=torch.float32, device=self.device)
 
-        # If h0 and c0 are None, then initialize
-        if self.h0 is None and self.c0 is None:
-            self.h0 = torch.zeros((1, batch_size, 128), dtype=torch.float32, device=self.device)
-            self.c0 = torch.zeros((1, batch_size, 128), dtype=torch.float32, device=self.device)
+            output, (self.h0, self.c0) = self.critic_2_lstm(x, (self.h0, self.c0))
 
-        output, (self.h0, self.c0) = self.critic_2_lstm(x, (self.h0, self.c0))
+            v = self.critic_2_FC(output)
 
-        v = self.critic_2_FC(output)
+        else:
+            # Forward propogation
+            for layer in self.critic_2_layers[:-1]:
+                x = F.elu(layer(x))
+
+            # Compute the value
+            v = self.critic_2_layers[-1](x)
 
         return v
 
     def reset_critic_2(self):
         self.h0, self.c0 = None, None
 
-    def forward(self, x, action_query=None):
+    def forward(self, x, i_episode=None, action_query=None):
+        """
+
+        :param x:
+        :param i_episode:   to tell LSTM critic which episode it is in for more accurate intrinsic value prediction
+        :param action_query:
+        :return:
+        """
         # A single pass through both actor and critic
 
         # Obtain encoding vector
@@ -165,6 +196,10 @@ class ActorCriticLSTM(nn.Module):
         value_1 = self.critic_1(x)
 
         # Pass through critic network 2
+        if i_episode is not None:
+            assert type(i_episode) is int, "i_episode must be an integer."
+            x = torch.cat([x, torch.ones((x.shape[0], 1), dtype=torch.float32, device=self.device)],dim=1 )
+
         value_2 = self.critic_2(x.unsqueeze(dim=1))    # Spare the batch dimension.
                                                         # Batch dimension of encoding vector x is the seq_len dimension of LSTM input
 
