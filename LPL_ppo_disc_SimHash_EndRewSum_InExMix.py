@@ -2,6 +2,9 @@
     Baseline model
         - Proximal Policy Optimization with a value net estimating state value and update policy with GAE.
         - Normal, discrete environment.
+
+    Mix intrinsic reward with end-of-episode total extrinsic reward.
+        Use only one value network (extrinsic ValueNet)
 """
 
 import matplotlib
@@ -179,10 +182,8 @@ print("Current usable device is: ", device)
 # Create the model. Two value net
 policy_net = PolicyNet(layer_sizes).to(device)      # Policy network
 value_net_ex = ValueNet(input_size).to(device)         # Value network for extrinsic reward
-value_net_in = ValueNet(input_size).to(device)
 
 # Set up optimizer
-valuenet_in_optimizer = optim.Adam(value_net_in.parameters())
 valuenet_ex_optimizer = optim.Adam(value_net_ex.parameters())
 
 # Set up memory
@@ -215,8 +216,7 @@ training_info = {"epoch mean durations" : [],
                  "epoch mean rewards" : [],
                  "max reward achieved": 0,
                  "past %d epochs mean reward" % num_avg_epoch: 0,
-                 "extrinsic value net loss": [],
-                 "intrinsic value net loss": [],}
+                 "extrinsic value net loss": []}
 
 # Batch that records trajectories
 
@@ -244,7 +244,6 @@ while True:
     episode_rewards = []
 
     # Use value net in evaluation mode when collecting trajectories
-    value_net_in.eval()
     value_net_ex.eval()
 
     ###################################################################
@@ -262,10 +261,9 @@ while True:
 
         # Estimate the value of the initial state
         ex_val = value_net_ex(torch.tensor([current_state], dtype=torch.float32, device=device)).squeeze()      # squeeze the dimension
-        in_val = value_net_in(torch.tensor([current_state], dtype=torch.float32, device=device)).squeeze()
 
         # Store the first state and value estimate in memory
-        memory.set_initial_state(current_state, initial_ex_val_est=ex_val, initial_in_val_est=in_val)
+        memory.set_initial_state(current_state, initial_ex_val_est=ex_val)
 
         # Obtain current state hash code
         current_state_hash = simhash.hash(current_state)
@@ -282,7 +280,6 @@ while True:
 
             # Estimate the value of the next state
             ex_val = value_net_ex(torch.tensor([next_state], dtype=torch.float32, device=device)).squeeze()     # squeeze the dimension
-            in_val = value_net_in(torch.tensor([next_state], dtype=torch.float32, device=device)).squeeze()
 
             # Obtain next state hash code
             next_state_hash = simhash.hash(next_state)
@@ -298,14 +295,15 @@ while True:
                 act_counter = np.zeros((output_size,), dtype=np.int32)
 
             # Take the action confidence with current state hash code as the intrinsic reward
-            in_reward = graph.action_confidence(current_state_hash, action.item())
-            in_reward = curiosity_weight * np.sqrt(in_reward)       # Take the square root of confidence value
+            in_reward = curiosity_weight * graph.action_confidence(current_state_hash, action.item())
+            # in_reward = curiosity_weight * np.sqrt(in_reward)       # Take the square root of confidence value
 
             # Record transition in memory
+            # If not done (end of episode), only record exploration bonus. If done, add exploration bonus at that step
+            #   with end-of-episode total running extrinsic reward.
             memory.add_transition(action, log_prob, next_state,
-                                  extrinsic_reward=running_reward if done else 0., extrinsic_value_estimate=ex_val,
-                                  intrinsic_reward=in_reward, intrinsic_value_estimate=in_val)
-
+                                  extrinsic_reward=in_reward if not done else in_reward + running_reward,
+                                  extrinsic_value_estimate=ex_val)
 
             # Update current state
             current_state = next_state
@@ -340,7 +338,6 @@ while True:
     policy_candidate_optimizer = optim.Adam(policy_candidate.parameters())
 
     ex_gae = memory.extrinsic_gae(batch_size)
-    in_gae = memory.intrinsic_gae(batch_size)
     old_act_log_prob = memory.act_log_prob(batch_size)
     states = memory.states(batch_size)
     actions = memory.actions(batch_size)
@@ -362,7 +359,7 @@ while True:
             if torch.sum(torch.abs(ratio - 1) > clip_range) == ratio.shape[0]:
                 print("\t\tFully Clipped!")
 
-            gae = ex_gae[j] + in_gae[j]          # intrinsic gae + extrinsic gae
+            gae = ex_gae[j]          # intrinsic gae + extrinsic gae
 
             surr1 = ratio * gae
             surr2 = (((gae < 0.).type(torch.float32) * (1 - clip_range) +
@@ -381,23 +378,17 @@ while True:
 
     # Optimize value net for a given number of steps
     # Set value net in training mode
-    value_net_in.train()
     value_net_ex.train()
     ex_rtg = memory.extrinsic_discounted_rtg(batch_size)      # Use undiscounted reward-to-go to fit the value net
-    in_rtg = memory.intrinsic_rtg(batch_size)
     ex_val_est = []
-    in_val_est = []
 
     print("\n\n\tUpdate Value Net for %d steps" % (num_vn_iter))
 
     for i in tqdm(range(num_vn_iter)):          # Use tqdm to show progress bar
         for j in range(batch_size):
-            in_val_traj = value_net_in(states[j]).squeeze()
             ex_val_traj = value_net_ex(states[j]).squeeze()
-            in_val_est.append(in_val_traj)
             ex_val_est.append(ex_val_traj)
 
-        in_value_net_mse = value_net_in.optimize_model(in_val_est, in_rtg, valuenet_in_optimizer)
         ex_value_net_mse = value_net_ex.optimize_model(ex_val_est, ex_rtg, valuenet_ex_optimizer)
 
     # Reset Flags
@@ -414,7 +405,6 @@ while True:
     training_info["epoch mean durations"].append(epoch_durations[-1])
     training_info["epoch mean rewards"].append(epoch_rewards[-1])
     training_info["extrinsic value net loss"].append(ex_value_net_mse)
-    training_info["intrinsic value net loss"].append(in_value_net_mse)
     if (i_epoch + 1) % num_avg_epoch:
         training_info["past %d epochs mean reward" %  (num_avg_epoch)] = \
             (sum(training_info["epoch mean rewards"][-num_avg_epoch:]) / num_avg_epoch) \
@@ -426,12 +416,11 @@ while True:
     print("epoch mean rewards: %f" % (epoch_rewards[-1]))
     print("Max reward achieved: %f" % training_info["max reward achieved"])
     print("extrinsic value net loss: %f" % ex_value_net_mse)
-    print("intrinsic value net loss: %f" % in_value_net_mse)
 
     # Plot stats
     if plot:
         plot_durations(training_info["epoch mean rewards"],
-                       training_info["extrinsic value net loss"], training_info["intrinsic value net loss"])
+                       training_info["extrinsic value net loss"])
 
     # Update counter
     i_epoch += 1

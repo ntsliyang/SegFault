@@ -2,6 +2,9 @@
     Baseline model
         - Proximal Policy Optimization with a value net estimating state value and update policy with GAE.
         - Normal, discrete environment.
+
+    Use Q-function network to fit intrinsic exploration bonus return
+    Use value-function network to fit extrinsic reward return
 """
 
 import matplotlib
@@ -17,6 +20,7 @@ import os
 from model.ppo_discrete import PolicyNet, ValueNet
 from utils.utils2 import plot_durations
 from utils.memory import Memory
+from utils.onehot import to_one_hot
 from Hashing.SimHash import SimHash
 from LPLGraph.LPLGraph import LPLGraph
 import json
@@ -179,7 +183,7 @@ print("Current usable device is: ", device)
 # Create the model. Two value net
 policy_net = PolicyNet(layer_sizes).to(device)      # Policy network
 value_net_ex = ValueNet(input_size).to(device)         # Value network for extrinsic reward
-value_net_in = ValueNet(input_size).to(device)
+value_net_in = ValueNet(input_size + 1 + output_size).to(device)      # One additional input unit to indicate trajectory number
 
 # Set up optimizer
 valuenet_in_optimizer = optim.Adam(value_net_in.parameters())
@@ -260,9 +264,12 @@ while True:
         # Initialize the environment and state
         current_state = env.reset()
 
+        # TODO: Change codes below
+
         # Estimate the value of the initial state
         ex_val = value_net_ex(torch.tensor([current_state], dtype=torch.float32, device=device)).squeeze()      # squeeze the dimension
-        in_val = value_net_in(torch.tensor([current_state], dtype=torch.float32, device=device)).squeeze()
+        in_val = value_net_in(torch.tensor([np.concatenate((current_state, [i_episode]), axis=0)],
+                              dtype=torch.float32, device=device)).squeeze()    # provide i_episode as additional info as input
 
         # Store the first state and value estimate in memory
         memory.set_initial_state(current_state, initial_ex_val_est=ex_val, initial_in_val_est=in_val)
@@ -282,7 +289,8 @@ while True:
 
             # Estimate the value of the next state
             ex_val = value_net_ex(torch.tensor([next_state], dtype=torch.float32, device=device)).squeeze()     # squeeze the dimension
-            in_val = value_net_in(torch.tensor([next_state], dtype=torch.float32, device=device)).squeeze()
+            in_val = value_net_in(torch.tensor([np.concatenate((next_state, [i_episode]), axis=0)],
+                                  dtype=torch.float32, device=device)).squeeze()    # provide i_episode as additional info as input
 
             # Obtain next state hash code
             next_state_hash = simhash.hash(next_state)
@@ -298,13 +306,16 @@ while True:
                 act_counter = np.zeros((output_size,), dtype=np.int32)
 
             # Take the action confidence with current state hash code as the intrinsic reward
-            in_reward = graph.action_confidence(current_state_hash, action.item())
-            in_reward = curiosity_weight * np.sqrt(in_reward)       # Take the square root of confidence value
+            in_reward = curiosity_weight * graph.action_confidence(current_state_hash, action.item())
+            # in_reward = curiosity_weight * np.sqrt(in_reward)       # Take the square root of confidence value
 
             # Record transition in memory
             memory.add_transition(action, log_prob, next_state,
-                                  extrinsic_reward=running_reward if done else 0., extrinsic_value_estimate=ex_val,
+                                  extrinsic_reward=reward, extrinsic_value_estimate=ex_val,
                                   intrinsic_reward=in_reward, intrinsic_value_estimate=in_val)
+            # memory.add_transition(action, log_prob, next_state,
+            #                       extrinsic_reward=running_reward if done else 0., extrinsic_value_estimate=ex_val,
+            #                       intrinsic_reward=in_reward, intrinsic_value_estimate=in_val)
 
 
             # Update current state
@@ -392,7 +403,7 @@ while True:
 
     for i in tqdm(range(num_vn_iter)):          # Use tqdm to show progress bar
         for j in range(batch_size):
-            in_val_traj = value_net_in(states[j]).squeeze()
+            in_val_traj = value_net_in(torch.cat([states[j], torch.ones((states[j].shape[0], 1), dtype=torch.float32, device=device) * j], dim=1)).squeeze()
             ex_val_traj = value_net_ex(states[j]).squeeze()
             in_val_est.append(in_val_traj)
             ex_val_est.append(ex_val_traj)

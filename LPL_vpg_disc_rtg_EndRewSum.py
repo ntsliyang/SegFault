@@ -17,7 +17,7 @@ import torch.optim as optim
 from itertools import count
 import os
 from model.vpg_discrete_rtg import PolicyNet, ValueNet
-from utils.utils import plot_durations
+from utils.utils2 import plot_durations
 from utils.memory import Memory
 import json
 import sys

@@ -204,6 +204,22 @@ class Memory(object):
         """
         return self.memory['actions'][-batch_size:]
 
+    def intrinsic_rewards(self, batch_size):
+        """
+            Return a batch of intrinsic rewards
+        :param batch_size:
+        :return:
+        """
+        return self.memory['in_rews'][-batch_size:]
+
+    def extrinsic_rewards(self, batch_size):
+        """
+            Return a batch of extrinsic rewards
+        :param batch_size:
+        :return:
+        """
+        return self.memory['ex_rews'][-batch_size:]
+
     def act_log_prob(self, batch_size):
         """
             Return a batch of action log probabilities

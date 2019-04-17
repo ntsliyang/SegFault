@@ -3,10 +3,10 @@
   "is_unwrapped": false,
 
   "actor_layer_sizes": [128, 128, 128, 18],
-  "critic_layer_sizes": [128, 128, 128, 1],
+  "critic_1_layer_sizes": [128, 128, 128, 1],
   "grayscale": true,
 
-  "ckpt_dir": "test_ppo_pixel_AE_MontezumaRevenge-v0/",
+  "ckpt_dir": "LPL_ppo_pixel_AE_SimHash_MontezumaRevenge-v0/",
   "save_ckpt_interval": 5,
 
   "stacked": false,
@@ -17,9 +17,14 @@
   "hash_batchsize": 128,
   "hash_num_updates_per_epoch": 64,
 
+  "max_reward": 200,
+  "num_particles": 20,
+  "curiosity_weight": 1.0,
+  "curiosity_delay": 30,
+
   "capacity": 4,
 
-  "i_epoch": 30,
+  "i_epoch": 0,
   "batch_size": 4,
 
   "num_updates_per_epoch": 4,

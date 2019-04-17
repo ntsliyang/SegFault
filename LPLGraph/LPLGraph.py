@@ -290,7 +290,7 @@ class LPLGraph(object):
         self.G[action_node][state_node]["V_a"][layer] += self._lr * (1 - expected_val)
 
         # Clip the values so that they do not explode
-        self.G[action_node][state_node]["V_a"][layer] = self.G[action_node][state_node]["V_a"][layer].clip(-10, 10)
+        self.G[action_node][state_node]["V_a"][layer] = self.G[action_node][state_node]["V_a"][layer].clip(-1.1, 1.1)
 
         # Hypothesis test to determine whether to modify the edge type
         self._change_edge_type(action_node, state_node)

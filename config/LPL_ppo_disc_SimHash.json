@@ -13,7 +13,7 @@
   "use_preprocessor": false,
 
   "max_reward": 200,
-  "num_particles"; 30,
+  "num_particles": 15,
   "curiosity_weight": 1.0,
 
   "capacity": 8,
@@ -21,7 +21,7 @@
   "i_epoch": 0,
   "batch_size": 8,
 
-  "num_vn_iter": 32,
+  "num_vn_iter": 128,
   "num_updates_per_epoch": 16,
   "clip_range": 0.2,
 
