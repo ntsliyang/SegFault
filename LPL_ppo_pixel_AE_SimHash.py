@@ -237,6 +237,9 @@ while True:
         # Keep track of the running reward
         running_reward = 0
 
+        # Reset action counter
+        act_counter = np.zeros((actor_layer_sizes[-1],), dtype=np.int32)
+
         # Initialize the environment and state
         frame_list = []
         initial_frame = env.reset()
@@ -371,17 +374,14 @@ while True:
     # initialize the optimizer
     candidate_optimizer = optim.Adam(actor_critic_candidate.parameters())
 
-    # Get batch data
-    ex_rtg = memory.extrinsic_discounted_rtg(batch_size)
-    ex_gae = memory.extrinsic_gae(batch_size)
-    in_rtg = memory.intrinsic_rtg(batch_size)
-    in_gae = memory.intrinsic_gae(batch_size)
+    # Get stationary batch data
+    in_rew = memory.intrinsic_rewards(batch_size)
+    ex_rew = memory.extrinsic_rewards(batch_size)
     old_act_log_prob = memory.act_log_prob(batch_size)
     states = memory.states(batch_size)
     actions = memory.actions(batch_size)
 
     # Proximal Policy Optimization - Calculate joint loss for both actor and critic network
-    loss = 0
     ex_critic_loss_total = 0
     in_critic_loss_total = 0
 
@@ -389,59 +389,95 @@ while True:
 
     for i in tqdm(range(num_updates_per_epoch)):        # Use tqdm to show progress bar
 
+        # Reset LSTM module for a new batch of update
         actor_critic_candidate.reset_critic_2()
 
+        # Get unstationary batch data that will be updated each round
+        ex_gae = memory.extrinsic_gae(batch_size)
+        in_gae = memory.intrinsic_gae(batch_size)
+        old_ex_val_est = memory.extrinsic_val_est(batch_size)
+        old_in_val_est = memory.intrinsic_val_est(batch_size)
+
+        loss = 0
         num = 0
         for j in range(batch_size):
             # Move the slices to specified device
-            ex_rtg[j] = ex_rtg[j].detach().to(device)
-            ex_gae[j] = ex_gae[j].detach().to(device)
-            in_rtg[j] = in_rtg[j].detach().to(device)
-            in_gae[j] = in_gae[j].detach().to(device)
-            old_act_log_prob[j] = old_act_log_prob[j].detach().to(device)
-            states[j] = states[j].detach().to(device)
-            actions[j] = actions[j].detach().to(device)
+            old_act_log_prob_traj = old_act_log_prob[j].detach().to(device)
+            states_traj = states[j].detach().to(device)
+            actions_traj = actions[j].detach().to(device)
+            ex_gae_traj = ex_gae[j].detach().to(device)
+            in_gae_traj = in_gae[j].detach().to(device)
+
+            ex_rew_traj = ex_rew[j].detach().to(device)
+            in_rew_traj = in_rew[j].detach().to(device)
+            old_ex_val_est_traj = old_ex_val_est[j].detach().to(device)
+            old_in_val_est_traj = old_in_val_est[j].detach().to(device)
 
             # Calculate the log probabilities of the actions stored in memory from the distribution parameterized by the
             #   new candidate network
-            _, new_act_log_prob, ex_val_est, in_val_est = actor_critic_candidate(states[j][:-1], i_episode=j, action_query=actions[j])    # Ignore last state
+            # Append a dummy value to actions_traj and use the full trajectory of states for one forward propogation
+            #   Then ignore values at the last timestep when appropriate.
+            actions_traj = torch.cat([actions_traj, torch.zeros((1,), dtype=torch.int64, device=device)], dim=0)
+            _, new_act_log_prob_traj, ex_val_est_traj, in_val_est_traj = \
+                actor_critic_candidate(states_traj, i_episode=j, action_query=actions_traj)
+            new_act_log_prob_traj = new_act_log_prob_traj[:-1]
+            ex_val_est_traj = ex_val_est_traj.squeeze()
+            in_val_est_traj = in_val_est_traj.squeeze()
 
-            # Actor part
-            ratio = torch.exp(new_act_log_prob - old_act_log_prob[j])      # Detach old action log prob
+            ############## Actor part: PPO update ##############
+            ratio = torch.exp(new_act_log_prob_traj - old_act_log_prob_traj)      # Detach old action log prob
 
-            gae = ex_gae[j] + in_gae[j]
+            gae = ex_gae_traj + in_gae_traj
 
             surr1 = ratio * gae
             surr2 = (((gae < 0.).type(torch.float32) * (1 - clip_range) +
                       (gae > 0.).type(torch.float32) * (1 + clip_range))) * gae
             actor_loss = - torch.sum(torch.min(surr1, surr2))
 
-            # Extrinsic (FC) Critic part
-            ex_critic_loss = F.mse_loss(ex_val_est.squeeze(), ex_rtg[j], reduction='sum')
+
+            ############## Critic part: bootstrapped estimate ##############
+
+            ### Extrinsic value net
+
+            # Calculate bootstrapped target: r_t + v_(t+1)
+            ex_target = ex_rew_traj + GAMMA * old_ex_val_est_traj[1:]   # discounted
+
+            ex_critic_loss = F.mse_loss(ex_val_est_traj, ex_target, reduction='sum')
             ex_critic_loss_total += ex_critic_loss
 
+            ### Intrinsic value net
+            in_critic_loss = 0
             if i_epoch > curiosity_delay:
-                # Intrinsic (LSTM) Critic part
-                in_critic_loss = F.mse_loss(in_val_est.squeeze(), in_rtg[j], reduction='sum')
+                # Calculate bootstapped target
+                in_target = in_rew_traj + GAMMA * old_in_val_est_traj[1:]   # discounted
+
+                in_critic_loss = F.mse_loss(in_val_est_traj, in_target, reduction='sum')
                 in_critic_loss_total += in_critic_loss
 
-                loss += actor_loss + vf_coef * (ex_critic_loss + in_critic_loss)    # joint loss
-            else:
-                loss += actor_loss + vf_coef * ex_critic_loss       # joint loss
 
-            num += ratio.shape[0]
+            #################### Summing the losses ####################
 
-        loss /= torch.tensor(num, device=device, dtype=torch.float32)
+            loss += actor_loss + vf_coef * (ex_critic_loss + in_critic_loss)    # joint loss
+
+            num += ratio.shape[0]   # Count total timesteps
+
+
+            #################### Store new value estimates ####################
+            memory.update_extrinsic_val_est(batch_size, j, in_val_est_traj.squeeze().detach().clone().cpu())
+            memory.update_intrinsic_val_est(batch_size, j, ex_val_est_traj.squeeze().detach().clone().cpu())
+
+
+        #################### Update parameters ####################
+
+        loss /= torch.tensor(num, device=device, dtype=torch.float32)       # Normalize loss by dividing by total timesteps
         ex_critic_loss_total /= torch.tensor(num, device=device, dtype=torch.float32)
         in_critic_loss_total /= torch.tensor(num, device=device, dtype=torch.float32)
 
         candidate_optimizer.zero_grad()
-        loss.backward(retain_graph=True if i < num_updates_per_epoch - 1 else False)    # Free buffer the last time doing backprop
+        loss.backward()
 
         # Clip the gradients in the actor network
-        for layer in actor_critic_candidate.actor_layers:
-            for param in layer.parameters():
-                param.grad.data.clamp_(-1., 1.)
+        nn.utils.clip_grad_norm(actor_critic_candidate.parameters(), 1.)
 
         candidate_optimizer.step()
 

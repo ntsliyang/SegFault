@@ -234,7 +234,7 @@ class Memory(object):
         :param batch_size:
         :return:
         """
-        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         return self.memory['in_val_est'][-batch_size:]
 
@@ -244,9 +244,42 @@ class Memory(object):
         :param batch_size:
         :return:
         """
-        assert batch_size < self.capacity, "batch size need to be smaller than memory capacity"
+        assert batch_size <= self.capacity, "batch size need to be smaller than memory capacity"
 
         return self.memory['ex_val_est'][-batch_size:]
+
+    def update_extrinsic_val_est(self, batch_size, idx, val_est):
+        """
+            REPLACE a trajectory of extrinsic value estimate in the given batch (the last stored batch_size trajectories)
+                indexed by idx.
+        :param batch_size:
+        :param index:
+        :return:
+        """
+        # New contents must have same size to the contents to be replaced
+        assert val_est.shape == self.memory['ex_val_est'][-batch_size + idx].shape, "The new value estimates must have" \
+                " the same shape as the one to be replace. New value estimates have shape: {}, old value estimates have" \
+                " shape: {}.".format(val_est.shape, self.memory['ex_val_est'][-batch_size + idx].shape)
+
+        # Replace contents in the list
+        self.memory['ex_val_est'][-batch_size + idx] = val_est
+
+    def update_intrinsic_val_est(self, batch_size, idx, val_est):
+        """
+            REPLACE a trajectory of intrinsic value estimate in the given batch (the last stored batch_size trajectories)
+                indexed by idx.
+        :param batch_size:
+        :param idx:
+        :param val_est:
+        :return:
+        """
+        # New contents must have same size to the contents to be replaced
+        assert val_est.shape == self.memory['in_val_est'][-batch_size + idx].shape, "The new value estimates must have" \
+                " the same shape as the one to be replace. New value estimates have shape: {}, old value estimates have" \
+                " shape: {}.".format(val_est.shape, self.memory['in_val_est'][-batch_size + idx].shape)
+
+        # Replace contents in the list
+        self.memory['in_val_est'][-batch_size + idx] = val_est
 
     def intrinsic_gae(self, batch_size):
         """
