@@ -442,7 +442,7 @@ while True:
             # Calculate bootstrapped target: r_t + v_(t+1)
             ex_target = ex_rew_traj + GAMMA * old_ex_val_est_traj[1:]   # discounted
 
-            ex_critic_loss = F.mse_loss(ex_val_est_traj, ex_target, reduction='sum')
+            ex_critic_loss = F.mse_loss(ex_val_est_traj[:-1], ex_target, reduction='sum')   # Ignore last value estimate value
             ex_critic_loss_total += ex_critic_loss
 
             ### Intrinsic value net
@@ -451,7 +451,7 @@ while True:
                 # Calculate bootstapped target
                 in_target = in_rew_traj + GAMMA * old_in_val_est_traj[1:]   # discounted
 
-                in_critic_loss = F.mse_loss(in_val_est_traj, in_target, reduction='sum')
+                in_critic_loss = F.mse_loss(in_val_est_traj[:-1], in_target, reduction='sum')   # Ignore last value estimate value
                 in_critic_loss_total += in_critic_loss
 
 
