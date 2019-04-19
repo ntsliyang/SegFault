@@ -345,12 +345,12 @@ while True:
     actions = memory.actions(batch_size)
 
     # Proximal Policy Optimization
-    loss = 0
 
     print("\n\n\tUpdate Policy Net for %d steps:" % (num_updates_per_epoch))
 
     for i in tqdm(range(num_updates_per_epoch)):        # Use tqdm to show progress bar
 
+        loss = 0        # Reset loss
         num = 0
         for j in range(batch_size):
             # Calculate the log probabilities of the actions stored in memory from the distribution parameterized by the
