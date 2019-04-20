@@ -369,7 +369,7 @@ while True:
             if torch.sum(torch.abs(ratio - 1) > clip_range) == ratio.shape[0]:
                 print("\t\tFully Clipped!")
 
-            gae = ex_gae[j] + in_gae[j]          # intrinsic gae + extrinsic gae
+            gae = ex_gae[j].detach() + in_gae[j].detach()          # intrinsic gae + extrinsic gae
 
             surr1 = ratio * gae
             surr2 = (((gae < 0.).type(torch.float32) * (1 - clip_range) +
