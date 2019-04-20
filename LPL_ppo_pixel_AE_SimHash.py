@@ -305,13 +305,18 @@ while True:
 
                 # If next state hashed to a different code than the current state, then infer the dominating action,
                 #   update causal link, and clear action counter
-                if next_state_hash != current_state_hash:
+                # Or if reached termination, update transition to the termination state
+                if next_state_hash != current_state_hash or done:
                     main_action = np.argmax(act_counter)
-                    graph.update_transition(current_state_hash, main_action, next_state_hash)
                     act_counter = np.zeros((actor_layer_sizes[-1],), dtype=np.int32)
+                    if next_state_hash != current_state_hash:
+                        graph.update_transition(current_state_hash, main_action, next_state_hash)
+                    if done:
+                        graph.update_termination(current_state_hash, main_action)
+
 
                 in_reward = graph.action_confidence(current_state_hash, action.item())
-                in_reward = curiosity_weight * np.sqrt(in_reward)  # Take the square root of confidence value
+                in_reward = curiosity_weight * in_reward  # Take the square root of confidence value
 
                 # Store transition in memory
                 memory.add_transition(action, log_prob.cpu(), next_state.clone().detach().cpu(),
@@ -427,7 +432,7 @@ while True:
             ############## Actor part: PPO update ##############
             ratio = torch.exp(new_act_log_prob_traj - old_act_log_prob_traj)      # Detach old action log prob
 
-            gae = ex_gae_traj + in_gae_traj
+            gae = ex_gae_traj + in_gae_traj if i_epoch > curiosity_delay else ex_gae_traj
 
             surr1 = ratio * gae
             surr2 = (((gae < 0.).type(torch.float32) * (1 - clip_range) +
@@ -463,8 +468,8 @@ while True:
 
 
             #################### Store new value estimates ####################
-            memory.update_extrinsic_val_est(batch_size, j, in_val_est_traj.squeeze().detach().clone().cpu())
-            memory.update_intrinsic_val_est(batch_size, j, ex_val_est_traj.squeeze().detach().clone().cpu())
+            memory.update_extrinsic_val_est(batch_size, j, ex_val_est_traj.squeeze().detach().clone().cpu())
+            memory.update_intrinsic_val_est(batch_size, j, in_val_est_traj.squeeze().detach().clone().cpu())
 
 
         #################### Update parameters ####################
@@ -514,11 +519,11 @@ while True:
 
     training_info["epoch mean durations"].append(epoch_durations[-1])
     training_info["epoch mean rewards"].append(epoch_rewards[-1])
-    training_info["extrinsic value net loss"].append(ex_critic_loss_total)
-    training_info["intrinsic value net loss"].append(in_critic_loss_total)
-    training_info["AE Hash loss"].append(ae_hash_loss)
+    training_info["extrinsic value net loss"].append(ex_critic_loss_total.item())
+    training_info["intrinsic value net loss"].append(in_critic_loss_total.item())
+    training_info["AE Hash loss"].append(ae_hash_loss.item())
     if (i_epoch + 1) % num_avg_epoch:
-        training_info["past %d epochs mean reward" %  (num_avg_epoch)] = \
+        training_info["past %d epochs mean reward" % (num_avg_epoch)] = \
             (sum(training_info["epoch mean rewards"][-num_avg_epoch:]) / num_avg_epoch) \
                 if len(training_info["epoch mean rewards"]) >= num_avg_epoch else 0
 
@@ -527,9 +532,9 @@ while True:
     print("epoch mean durations: %f" % (epoch_durations[-1]))
     print("epoch mean rewards: %f" % (epoch_rewards[-1]))
     print("Max reward achieved: %f" % training_info["max reward achieved"])
-    print("extrinsic value net loss: %f" % ex_critic_loss_total)
-    print("intrinsic value net loss: %f" % in_critic_loss_total)
-    print("Autoencoder Hashing model loss: %f" % ae_hash_loss)
+    print("extrinsic value net loss: %f" % ex_critic_loss_total.item())
+    print("intrinsic value net loss: %f" % in_critic_loss_total.item())
+    print("Autoencoder Hashing model loss: %f" % ae_hash_loss.item())
 
     # Plot stats
     if plot:
