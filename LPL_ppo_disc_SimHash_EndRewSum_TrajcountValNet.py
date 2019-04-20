@@ -30,7 +30,7 @@ from tqdm import tqdm, tqdm_gui
 # Utils for saving and loading checkpoints
 
 def save_checkpoint(file_dir, policy_net, value_net_in, value_net_ex,
-                    valuenet_in_optim, valuenet_ex_optim, simhash,
+                    valuenet_in_optim, valuenet_ex_optim, lpl_graph, simhash,
                     i_epoch, **kwargs):
     save_dict = {"policy_net": policy_net.state_dict(),
                  "value_net_in": value_net_in.state_dict(),
@@ -38,7 +38,7 @@ def save_checkpoint(file_dir, policy_net, value_net_in, value_net_ex,
                  "valuenet_in_optim": valuenet_in_optim.state_dict(),
                  "valuenet_ex_optim": valuenet_ex_optim.state_dict(),
                  "i_epoch": i_epoch,
-                 # "lpl_graph": lpl_graph,
+                 "lpl_graph": lpl_graph,
                  "simhash": simhash
                  }
     # Save optional contents
@@ -67,7 +67,7 @@ def load_checkpoint(file_dir, i_epoch, layer_sizes, input_size, device='cuda'):
     policy_net.load_state_dict(checkpoint["policy_net"])
     policy_net.train()
 
-    value_net_in = ValueNet(input_size).to(device)
+    value_net_in = ValueNet(input_size + 1).to(device)
     value_net_in.load_state_dict(checkpoint["value_net_in"])
     value_net_in.train()
 
@@ -81,7 +81,7 @@ def load_checkpoint(file_dir, i_epoch, layer_sizes, input_size, device='cuda'):
     valuenet_ex_optim = optim.Adam(value_net_ex.parameters())
     valuenet_ex_optim.load_state_dict(checkpoint["valuenet_ex_optim"])
 
-    # lpl_graph = checkpoint["lpl_graph"]
+    lpl_graph = checkpoint["lpl_graph"]
     simhash = checkpoint["simhash"]
 
     checkpoint.pop("policy_net")
@@ -89,10 +89,12 @@ def load_checkpoint(file_dir, i_epoch, layer_sizes, input_size, device='cuda'):
     checkpoint.pop("value_net_ex")
     checkpoint.pop("valuenet_in_optim")
     checkpoint.pop("valuenet_ex_optim")
+    checkpoint.pop("lpl_graph")
+    checkpoint.pop("simhash")
     checkpoint.pop("i_epoch")
 
     return policy_net, value_net_in, value_net_ex, valuenet_in_optim, valuenet_ex_optim,\
-            simhash, checkpoint
+            lpl_graph, simhash, checkpoint
 
 
 # Load command line arguments
@@ -235,11 +237,11 @@ while True:
     # Every save_ckpt_interval, Check if there is any checkpoint.
     # If there is, load checkpoint and continue training
     # Need to specify the i_episode of the checkpoint intended to load
-    # if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
-    #     policy_net, value_net_in, value_net_ex, valuenet_in_optimizer, valuenet_ex_optimizer,\
-    #     simhash, training_info = \
-    #         load_checkpoint(ckpt_dir, i_epoch, layer_sizes, input_size, device=device)
-    #     print("\n\tCheckpoint successfully loaded!\n")
+    if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
+        policy_net, value_net_in, value_net_ex, valuenet_in_optimizer, valuenet_ex_optimizer,\
+        graph, simhash, training_info = \
+            load_checkpoint(ckpt_dir, i_epoch, layer_sizes, input_size, device=device)
+        print("\n\tCheckpoint successfully loaded!\n")
 
     # To record episode stats
     episode_durations = []
@@ -306,12 +308,12 @@ while True:
             # in_reward = curiosity_weight * np.sqrt(in_reward)       # Take the square root of confidence value
 
             # Record transition in memory
-            memory.add_transition(action, log_prob, next_state,
-                                  extrinsic_reward=reward, extrinsic_value_estimate=ex_val,
-                                  intrinsic_reward=in_reward, intrinsic_value_estimate=in_val)
             # memory.add_transition(action, log_prob, next_state,
-            #                       extrinsic_reward=running_reward if done else 0., extrinsic_value_estimate=ex_val,
+            #                       extrinsic_reward=reward, extrinsic_value_estimate=ex_val,
             #                       intrinsic_reward=in_reward, intrinsic_value_estimate=in_val)
+            memory.add_transition(action, log_prob, next_state,
+                                  extrinsic_reward=running_reward if done else 0., extrinsic_value_estimate=ex_val,
+                                  intrinsic_reward=in_reward, intrinsic_value_estimate=in_val)
 
 
             # Update current state
@@ -444,7 +446,7 @@ while True:
     i_epoch += 1
 
     # Every save_ckpt_interval, save a checkpoint according to current i_episode.
-    # if i_epoch % save_ckpt_interval == 0:
-    #     save_checkpoint(ckpt_dir, policy_net, value_net_in, value_net_ex,
-    #                     valuenet_in_optimizer, valuenet_ex_optimizer, simhash, i_epoch, **training_info)
+    if i_epoch % save_ckpt_interval == 0:
+        save_checkpoint(ckpt_dir, policy_net, value_net_in, value_net_ex,
+                        valuenet_in_optimizer, valuenet_ex_optimizer, graph, simhash, i_epoch, **training_info)
 

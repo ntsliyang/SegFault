@@ -13,7 +13,7 @@ class LPLGraph(object):
         """
 
         :param state_hash_size: the length of the binary hash code for states. The total number of state representations
-                                is 2 ** state_hash_size
+                                is 2 ** state_hash_size + 1. (A special state for the termination state)
         :param num_actions: The number of discrete (or discretized) action representations
         :param maximum_reward: The maximum possible value of reward in this environment
         :param reward_est_alpha: The hyperparameter alpha for the moving average estimate of the reward corresponding
@@ -48,10 +48,11 @@ class LPLGraph(object):
         assert (type(state_hash_size) is int) and (state_hash_size > 0), "state_hash_size should be a positive integer."
         assert (type(num_actions) is int) and (num_actions > 0), "num_actions should be a positive integer."
 
-        # The number of state nodes is 2 ** state_hash_size
-        self.G.add_nodes_from(["state_" + str(i) for i in range(2 ** state_hash_size)])
+        # The number of state nodes is 2 ** state_hash_size + 1
+        self.G.add_nodes_from(["state_" + str(i) for i in range(2 ** state_hash_size)])     # Regular state
+        self.G.add_node("state_" + str(-1))     # Use index -1 for termination state
 
-        # The number of action nodes is (2 ** state_hash_size) * num_actions
+        # The number of action nodes is (2 ** state_hash_size) * num_actions. Termination state do not have actions
         self.G.add_nodes_from(["state_" + str(i) + "_action_" + str(j)
                                for i in range(2 ** state_hash_size) for j in range(num_actions)])
 
@@ -336,42 +337,54 @@ class LPLGraph(object):
                         self._update_causal_strength(i, action_node, potential_state_node, state_expected_val)
 
 
-        # Update state nodes' beta distribution hyperparameters
-        # Obtain action choice and action choice node
-        if type(action) is str:
-            action_choice = int(action_node[-1])
-        else:
-            action_choice = action
-        action_choice_node = prev_state_node + "_action_choice"
+        ################### Currently Disabled ###################
 
-        # If the edge (action -> next_state) does not exist, create one
-        if next_state_node not in list(self.G.neighbors(action_choice_node)):
-            self._add_inference_edge(action_choice_node, next_state_node)
+        # # Update state nodes' beta distribution hyperparameters
+        # # Obtain action choice and action choice node
+        # if type(action) is str:
+        #     action_choice = int(action_node[-1])
+        # else:
+        #     action_choice = action
+        # action_choice_node = prev_state_node + "_action_choice"
+        #
+        # # If the edge (action -> next_state) does not exist, create one
+        # if next_state_node not in list(self.G.neighbors(action_choice_node)):
+        #     self._add_inference_edge(action_choice_node, next_state_node)
+        #
+        # # Update alpha count for s_t+1
+        # beta_index = self.G[action_choice_node][next_state_node]["beta_index"]
+        # self.G.nodes[next_state_node]["beta"][beta_index][action_choice][0] += 1    # 0 is alpha cound
+        #
+        # # Update the stochastic transition model
+        # stoc_model = self._generate_transition_model(action_choice_node, next_state_node)
+        # self.G[action_choice_node][next_state_node]["stoc_model"] = stoc_model
+        #
+        # # For every other (observed) outcome s of (s_t, a_t), update its beta count and the corresponding stochastic
+        # #   transition model.
+        # #   i.e. action a_t took place but did not result in s
+        # for outcome_state_node in list(self.G.successors(action_choice_node)):
+        #     beta_index = self.G[action_choice_node][outcome_state_node]["beta_index"]
+        #     self.G.nodes[outcome_state_node]["beta"][beta_index][action_choice][1] += 1     # 1 is beta count
+        #     stoc_model = self._generate_transition_model(action_choice_node, outcome_state_node)
+        #     self.G[action_choice_node][outcome_state_node]["stoc_model"] = stoc_model
+        #
+        # # Update reward estimate for this state node (next_state), if the reward is given
+        # if reward is not None:
+        #     optimality_node = "optimality_" + next_state_node[-1]
+        #     # Moving average estimate
+        #     self.G[next_state_node][optimality_node]["reward_est"] += self._reward_est_alpha * reward
+        #     # Update optimality model
+        #     self.G[next_state_node][optimality_node]["opt_model"] = self._generate_optimality_model(next_state_node)
 
-        # Update alpha count for s_t+1
-        beta_index = self.G[action_choice_node][next_state_node]["beta_index"]
-        self.G.nodes[next_state_node]["beta"][beta_index][action_choice][0] += 1    # 0 is alpha cound
-
-        # Update the stochastic transition model
-        stoc_model = self._generate_transition_model(action_choice_node, next_state_node)
-        self.G[action_choice_node][next_state_node]["stoc_model"] = stoc_model
-
-        # For every other (observed) outcome s of (s_t, a_t), update its beta count and the corresponding stochastic
-        #   transition model.
-        #   i.e. action a_t took place but did not result in s
-        for outcome_state_node in list(self.G.successors(action_choice_node)):
-            beta_index = self.G[action_choice_node][outcome_state_node]["beta_index"]
-            self.G.nodes[outcome_state_node]["beta"][beta_index][action_choice][1] += 1     # 1 is beta count
-            stoc_model = self._generate_transition_model(action_choice_node, outcome_state_node)
-            self.G[action_choice_node][outcome_state_node]["stoc_model"] = stoc_model
-
-        # Update reward estimate for this state node (next_state), if the reward is given
-        if reward is not None:
-            optimality_node = "optimality_" + next_state_node[-1]
-            # Moving average estimate
-            self.G[next_state_node][optimality_node]["reward_est"] += self._reward_est_alpha * reward
-            # Update optimality model
-            self.G[next_state_node][optimality_node]["opt_model"] = self._generate_optimality_model(next_state_node)
+    def update_termination(self, prev_state, action, reward=None):
+        """
+            Call this function if have transisted from prev_state to termination state.
+        :param prev_state:
+        :param action:
+        :param reward:
+        :return:
+        """
+        self.update_transition(prev_state, action, -1, reward)      # -1 is the index for the termination state
 
     def get_particles(self, state, action, next_state=None):
         """
