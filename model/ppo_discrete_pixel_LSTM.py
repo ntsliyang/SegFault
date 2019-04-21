@@ -66,14 +66,14 @@ class ActorCriticLSTM(nn.Module):
             input_size = output_size
 
         # LSTM critic module
-        if critic_2_extra_input is not None:
-            assert type(critic_2_extra_input) is int, "critic_2_extra_input must be an integer."
-            self.critic_2_lstm = LSTM(input_size=128 + critic_2_extra_input, hidden_size=128)
-        else:
-            self.critic_2_lstm = LSTM(input_size=128, hidden_size=128)
-        self.critic_2_FC = Linear(128, 1)
-        self.h0 = None
-        self.c0 = None      # Initialize initial hidden and cell state for LSTM critic
+        # if critic_2_extra_input is not None:
+        #     assert type(critic_2_extra_input) is int, "critic_2_extra_input must be an integer."
+        #     self.critic_2_lstm = LSTM(input_size=128 + critic_2_extra_input, hidden_size=128)
+        # else:
+        #     self.critic_2_lstm = LSTM(input_size=128, hidden_size=128)
+        # self.critic_2_FC = Linear(128, 1)
+        # self.h0 = None
+        # self.c0 = None      # Initialize initial hidden and cell state for LSTM critic
 
         # A backup FC Critic 2 module
         self.critic_2_layers = nn.ModuleList()
@@ -200,7 +200,7 @@ class ActorCriticLSTM(nn.Module):
             assert type(i_episode) is int, "i_episode must be an integer."
             x = torch.cat([x, torch.ones((x.shape[0], 1), dtype=torch.float32, device=self.device)],dim=1 )
 
-        value_2 = self.critic_2(x.unsqueeze(dim=1))    # Spare the batch dimension.
+        value_2 = self.critic_2(x.unsqueeze(dim=1) if self.use_lstm else x)    # Spare the batch dimension.
                                                         # Batch dimension of encoding vector x is the seq_len dimension of LSTM input
 
         return action, log_prob, value_1, value_2

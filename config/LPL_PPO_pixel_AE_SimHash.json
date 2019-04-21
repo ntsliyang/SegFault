@@ -3,14 +3,14 @@
   "is_unwrapped": false,
 
   "actor_layer_sizes": [128, 128, 18],
-  "critic_1_layer_sizes": [128, 128, 1],
+  "critic_1_layer_sizes": [128, 128, 128, 1],
   "grayscale": true,
 
   "ckpt_dir": "LPL_ppo_pixel_AE_SimHash_Frostbite-v0/",
   "save_ckpt_interval": 5,
 
   "stacked": false,
-  "len_AE_hashcode": 64,
+  "len_AE_hashcode": 256,
   "len_SimHash_hashcode": 10,
   "noise_scale": 0.3,
   "saturating_weight": 0.1,
@@ -18,8 +18,8 @@
   "hash_num_updates_per_epoch": 64,
 
   "max_reward": 200,
-  "num_particles": 20,
-  "curiosity_weight": 3.0,
+  "num_particles": 10,
+  "curiosity_weight": 0.3,
   "curiosity_delay": 5,
 
   "capacity": 4,
@@ -27,7 +27,7 @@
   "i_epoch": 0,
   "batch_size": 4,
 
-  "num_updates_per_epoch": 4,
+  "num_updates_per_epoch": 32,
   "clip_range": 0.2,
   "vf_coef": 0.5,
 

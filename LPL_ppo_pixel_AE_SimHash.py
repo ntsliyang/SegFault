@@ -31,50 +31,57 @@ from tqdm import tqdm
 
 # Utils for saving and loading checkpoints
 #
-# def save_checkpoint(file_dir, actor_critic, ae_hash, ae_hash_optim, i_epoch, **kwargs):
-#     save_dict = {"actor_critic": actor_critic.state_dict(),
-#                  "ae_hash": ae_hash.state_dict(),
-#                  "ae_hash_optim": ae_hash_optim.state_dict(),
-#                  "i_epoch": i_epoch
-#                  }
-#     # Save optional contents
-#     save_dict.update(kwargs)
-#
-#     # Create the directory if not exist
-#     if not os.path.isdir(file_dir):
-#         os.makedirs(file_dir)
-#
-#     file_name = os.path.join(file_dir, "ckpt_eps%d.pt" % i_epoch)
-#
-#     # Delete the file if the file already exist
-#     try:
-#         os.remove(file_name)
-#     except OSError:
-#         pass
-#
-#     # Save the file
-#     torch.save(save_dict, file_name)
-#
-#
-# def load_checkpoint(file_dir, i_epoch, actor_layer_sizes, critic_layer_sizes,
-#                     len_hashcode, stacked, grayscale=True, device='cuda'):
-#     checkpoint = torch.load(os.path.join(file_dir, "ckpt_eps%d.pt" % i_epoch), map_location=device)
-#
-#     actor_critic = ActorCritic(actor_layer_sizes, critic_layer_sizes, grayscale).to(device)
-#     actor_critic.load_state_dict(checkpoint["actor_critic"])
-#
-#     ae_hash = AEHash(len_hashcode, 4 if stacked else 1, device=device).to(device)
-#     ae_hash.load_state_dict(checkpoint["ae_hash"])
-#
-#     ae_hash_optim = optim.Adam(ae_hash.parameters())
-#     ae_hash_optim.load_state_dict(checkpoint["ae_hash_optim"])
-#
-#     checkpoint.pop("actor_critic")
-#     checkpoint.pop("i_epoch")
-#     checkpoint.pop("ae_hash")
-#     checkpoint.pop("ae_hash_optim")
-#
-#     return actor_critic, ae_hash, ae_hash_optim, checkpoint
+def save_checkpoint(file_dir, actor_critic, ae_hash, ae_hash_optim, sim_hash, lpl_graph, i_epoch, **kwargs):
+    save_dict = {"actor_critic": actor_critic.state_dict(),
+                 "ae_hash": ae_hash.state_dict(),
+                 "ae_hash_optim": ae_hash_optim.state_dict(),
+                 "sim_hash": sim_hash,
+                 "lpl_graph": lpl_graph,
+                 "i_epoch": i_epoch
+                 }
+    # Save optional contents
+    save_dict.update(kwargs)
+
+    # Create the directory if not exist
+    if not os.path.isdir(file_dir):
+        os.makedirs(file_dir)
+
+    file_name = os.path.join(file_dir, "ckpt_eps%d.pt" % i_epoch)
+
+    # Delete the file if the file already exist
+    try:
+        os.remove(file_name)
+    except OSError:
+        pass
+
+    # Save the file
+    torch.save(save_dict, file_name)
+
+
+def load_checkpoint(file_dir, i_epoch, actor_layer_sizes, critic_1_layer_sizes,
+                    len_hashcode, stacked, grayscale=True, device='cuda'):
+    checkpoint = torch.load(os.path.join(file_dir, "ckpt_eps%d.pt" % i_epoch), map_location=device)
+
+    actor_critic = ActorCriticLSTM(actor_layer_sizes, critic_1_layer_sizes, critic_2_extra_input=1, use_lstm=False, grayscale=grayscale, device=device).to(device)
+    actor_critic.load_state_dict(checkpoint["actor_critic"])
+
+    ae_hash = AEHash(len_hashcode, 4 if stacked else 1, device=device).to(device)
+    ae_hash.load_state_dict(checkpoint["ae_hash"])
+
+    ae_hash_optim = optim.Adam(ae_hash.parameters())
+    ae_hash_optim.load_state_dict(checkpoint["ae_hash_optim"])
+
+    sim_hash = checkpoint["sim_hash"]
+    lpl_graph = checkpoint["lpl_graph"]
+
+    checkpoint.pop("actor_critic")
+    checkpoint.pop("i_epoch")
+    checkpoint.pop("ae_hash")
+    checkpoint.pop("ae_hash_optim")
+    checkpoint.pop("sim_hash")
+    checkpoint.pop("lpl_graph")
+
+    return actor_critic, ae_hash, ae_hash_optim, sim_hash, lpl_graph, checkpoint
 
 
 # Load command line arguments
@@ -215,10 +222,10 @@ while True:
     # If there is, load checkpoint and continue training
     # Need to specify the i_episode of the checkpoint intended to load
 
-    # if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
-    #     actor_critic, ae_hash, ae_hash_optim, training_info = \
-    #         load_checkpoint(ckpt_dir, i_epoch, actor_layer_sizes, critic_layer_sizes, len_AE_hashcode, stacked, device=device)
-    #     print("\n\t Checkpoint successfully loaded! \n")
+    if i_epoch % save_ckpt_interval == 0 and os.path.isfile(os.path.join(ckpt_dir, "ckpt_eps%d.pt" % i_epoch)):
+        actor_critic, ae_hash, ae_hash_optim, sim_hash, graph, training_info = \
+            load_checkpoint(ckpt_dir, i_epoch, actor_layer_sizes, critic_1_layer_sizes, len_AE_hashcode, stacked, device=device)
+        print("\n\t Checkpoint successfully loaded! \n")
 
     # To record episode stats
     episode_durations = []
@@ -468,8 +475,8 @@ while True:
 
 
             #################### Store new value estimates ####################
-            memory.update_extrinsic_val_est(batch_size, j, ex_val_est_traj.squeeze().detach().clone().cpu())
-            memory.update_intrinsic_val_est(batch_size, j, in_val_est_traj.squeeze().detach().clone().cpu())
+            # memory.update_extrinsic_val_est(batch_size, j, ex_val_est_traj.squeeze().detach().clone().cpu())
+            # memory.update_intrinsic_val_est(batch_size, j, in_val_est_traj.squeeze().detach().clone().cpu())
 
 
         #################### Update parameters ####################
@@ -521,7 +528,7 @@ while True:
     training_info["epoch mean rewards"].append(epoch_rewards[-1])
     training_info["extrinsic value net loss"].append(ex_critic_loss_total.item())
     training_info["intrinsic value net loss"].append(in_critic_loss_total.item())
-    training_info["AE Hash loss"].append(ae_hash_loss.item())
+    training_info["AE Hash loss"].append(ae_hash_loss)
     if (i_epoch + 1) % num_avg_epoch:
         training_info["past %d epochs mean reward" % (num_avg_epoch)] = \
             (sum(training_info["epoch mean rewards"][-num_avg_epoch:]) / num_avg_epoch) \
@@ -534,7 +541,7 @@ while True:
     print("Max reward achieved: %f" % training_info["max reward achieved"])
     print("extrinsic value net loss: %f" % ex_critic_loss_total.item())
     print("intrinsic value net loss: %f" % in_critic_loss_total.item())
-    print("Autoencoder Hashing model loss: %f" % ae_hash_loss.item())
+    print("Autoencoder Hashing model loss: %f" % ae_hash_loss)
 
     # Plot stats
     if plot:
@@ -546,5 +553,6 @@ while True:
     i_epoch += 1
 
     # Every save_ckpt_interval, save a checkpoint according to current i_episode.
-    # if i_epoch % save_ckpt_interval == 0:
-    #     save_checkpoint(ckpt_dir, actor_critic, ae_hash, ae_hash_optim, i_epoch, **training_info)
+
+    if i_epoch % save_ckpt_interval == 0:
+        save_checkpoint(ckpt_dir, actor_critic, ae_hash, ae_hash_optim, sim_hash, graph, i_epoch, **training_info)
